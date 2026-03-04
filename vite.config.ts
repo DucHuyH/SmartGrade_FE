@@ -7,5 +7,11 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     port: 3000
-  }
+  },
+  resolve: {
+    alias: {
+      '@': '/src'
+    }
+  },
+  assetsInclude: ['**/*.pdf', "**/*.svg", "**/*.csv"]
 })
