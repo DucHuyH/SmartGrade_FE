@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  base: process.env.VITE_BASE_URL || '/SmartGrade',
   server: {
     port: 3000
   },
@@ -13,5 +14,5 @@ export default defineConfig({
       '@': '/src'
     }
   },
-  assetsInclude: ['**/*.pdf', "**/*.svg", "**/*.csv"]
+  assetsInclude: ['**/*.pdf', '**/*.svg', '**/*.csv']
 })
