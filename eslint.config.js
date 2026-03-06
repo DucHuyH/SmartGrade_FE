@@ -27,7 +27,8 @@ export default defineConfig([
       // Tắt cảnh báo về biến chưa sử dụng (JavaScript)
       'no-unused-vars': 'off',
       // Tắt cảnh báo về biến chưa sử dụng (TypeScript)
-      '@typescript-eslint/no-unused-vars': 'off'
+      '@typescript-eslint/no-unused-vars': 'off',
+      'react-refresh/only-export-components': 'off'
     }
   }
 ])
