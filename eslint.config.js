@@ -3,10 +3,12 @@ import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
-import { defineConfig, globalIgnores } from 'eslint/config'
+import { defineConfig } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  {
+    ignores: ['node_modules/', 'dist/']
+  },
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -20,14 +22,8 @@ export default defineConfig([
       globals: globals.browser
     },
     rules: {
-      // Tắt cảnh báo về kiểu any
-      '@typescript-eslint/no-explicit-any': 'off',
-      // Tắt cảnh báo về export nhiều component (nếu cần, nhưng rule này không được bật mặc định ở đây)
-      'react/no-multi-comp': 'off',
-      // Tắt cảnh báo về biến chưa sử dụng (JavaScript)
-      'no-unused-vars': 'off',
-      // Tắt cảnh báo về biến chưa sử dụng (TypeScript)
       '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
       'react-refresh/only-export-components': 'off'
     }
   }
