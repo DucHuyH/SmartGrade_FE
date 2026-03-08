@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:ngrok": "concurrently \"yarn dev\" \"ngrok http 3000\"",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint --ext ts,tsx src/",
@@ -36,6 +37,7 @@
     "@typescript-eslint/parser": "^8.56.1",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.27",
+    "concurrently": "^9.2.1",
     "eslint": "^10.0.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-import": "^2.32.0",
