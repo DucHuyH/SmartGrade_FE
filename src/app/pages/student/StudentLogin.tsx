@@ -6,22 +6,79 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { GraduationCap, ArrowLeft } from 'lucide-react';
+import { toast } from 'react-toastify';
+
+interface LoginFormData {
+  email: string;
+  password: string;
+}
+
+interface LoginErrors {
+  email?: string;
+  password?: string;
+  general?: string;
+}
 
 export function StudentLogin() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [errors, setErrors] = useState<LoginErrors>({});
+  const [formData, setFormData] = useState<LoginFormData>({
+    email: '',
+    password: '',
+  });
+
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleChange = (field: keyof LoginFormData, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => ({ ...prev, [field]: '' }));
+  };
+
+  const validate = (): boolean => {
+    const newErrors: LoginErrors = {};
+
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError('');
-    
-    if (login(email, password, 'student')) {
-      navigate('/student/dashboard');
-    } else {
-      setError('Invalid credentials');
+
+    if (!validate()) {
+      return;
+    }
+
+    setLoading(true);
+    setErrors({});
+
+    try {
+      const success = await login(formData.email, formData.password, 'student');
+
+      if (success) {
+        navigate('/student/dashboard');
+        toast.success('Login successful! Welcome to the student portal.');
+      } else {
+        setErrors({ general: 'Invalid email or password' });
+        toast.error('Invalid email or password');
+      }
+    } catch (error) {
+      setErrors({ general: 'An error occurred. Please try again.' });
+      toast.error('An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -52,10 +109,13 @@ export function StudentLogin() {
                   id="email"
                   type="email"
                   placeholder="student@university.edu"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={formData.email}
+                  onChange={(e) => handleChange('email', e.target.value)}
                   required
                 />
+                {errors.email && (
+                  <p className="text-sm text-red-600">{errors.email}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
@@ -63,20 +123,20 @@ export function StudentLogin() {
                   id="password"
                   type="password"
                   placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={formData.password}
+                  onChange={(e) => handleChange('password', e.target.value)}
                   required
                 />
+                {errors.password && (
+                  <p className="text-sm text-red-600">{errors.password}</p>
+                )}
               </div>
-              {error && (
-                <p className="text-sm text-red-600">{error}</p>
+              {errors.general && (
+                <p className="text-sm text-red-600">{errors.general}</p>
               )}
-              <Button type="submit" className="w-full">
-                Sign In
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? 'Signing in...' : 'Sign In'}
               </Button>
-              <p className="text-xs text-center text-gray-500 mt-4">
-                Demo: Use any email and password to login
-              </p>
             </form>
           </CardContent>
         </Card>

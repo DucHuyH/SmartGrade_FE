@@ -1,3 +1,9 @@
 @import 'tailwindcss';
 @import './styles/tailwind.css';
 @import './styles/theme.css';
+
+
+.Toastify__toast {
+  border-radius: 8px;
+  font-family: inherit;
+}
