@@ -3,12 +3,12 @@ import axiosInstance from './axios'
 import { STORAGE_KEYS } from '../../../constants'
 
 // Login
-export const login = async (username: string, password: string) => {
+export const login = async (email: string, password: string) => {
   try {
-    const response = await axiosInstance.post('login', { username, password }, { withCredentials: true })
+    const response = await axiosInstance.post('login/lecturer', { email, password }, { withCredentials: true })
 
-    if (response.data.success && response.data.admin) {
-      sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(response.data.admin))
+    if (response.data.success && response.data.user) {
+      sessionStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(response.data.user))
     }
 
     return response.data

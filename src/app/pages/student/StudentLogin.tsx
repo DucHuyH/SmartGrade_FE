@@ -1,98 +1,99 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router';
-import { useAuth } from '../../contexts/AuthContext';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { GraduationCap, ArrowLeft } from 'lucide-react';
-import { toast } from 'react-toastify';
+import { useState } from 'react'
+import { useNavigate, Link } from 'react-router'
+// import { useAuth } from '../../contexts/AuthContext';
+import { Button } from '../../components/ui/button'
+import { Input } from '../../components/ui/input'
+import { Label } from '../../components/ui/label'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
+import { GraduationCap, ArrowLeft } from 'lucide-react'
+import { toast } from 'react-toastify'
+import { login } from '../../services/student/authService'
 
 interface LoginFormData {
-  email: string;
-  password: string;
+  email: string
+  password: string
 }
 
 interface LoginErrors {
-  email?: string;
-  password?: string;
-  general?: string;
+  email?: string
+  password?: string
+  general?: string
 }
 
 export function StudentLogin() {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [errors, setErrors] = useState<LoginErrors>({});
+  const [loading, setLoading] = useState<boolean>(false)
+  const [errors, setErrors] = useState<LoginErrors>({})
   const [formData, setFormData] = useState<LoginFormData>({
     email: '',
-    password: '',
-  });
+    password: ''
+  })
 
-  const { login } = useAuth();
-  const navigate = useNavigate();
+  // const { login } = useAuth();
+  const navigate = useNavigate()
 
   const handleChange = (field: keyof LoginFormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    setErrors((prev) => ({ ...prev, [field]: '' }));
-  };
+    setFormData((prev) => ({ ...prev, [field]: value }))
+    setErrors((prev) => ({ ...prev, [field]: '' }))
+  }
 
   const validate = (): boolean => {
-    const newErrors: LoginErrors = {};
+    const newErrors: LoginErrors = {}
 
     if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = 'Email is required'
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
+      newErrors.email = 'Please enter a valid email address'
     }
 
     if (!formData.password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = 'Password is required'
     } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+      newErrors.password = 'Password must be at least 6 characters'
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+    e.preventDefault()
 
     if (!validate()) {
-      return;
+      return
     }
 
-    setLoading(true);
-    setErrors({});
+    setLoading(true)
+    setErrors({})
 
     try {
-      const success = await login(formData.email, formData.password, 'student');
+      const success = await login(formData.email, formData.password)
 
       if (success) {
-        navigate('/student/dashboard');
-        toast.success('Login successful! Welcome to the student portal.');
+        navigate('/student/dashboard')
+        toast.success('Login successful! Welcome to the student portal.')
       } else {
-        setErrors({ general: 'Invalid email or password' });
-        toast.error('Invalid email or password');
+        setErrors({ general: 'Invalid email or password' })
+        toast.error('Invalid email or password')
       }
     } catch (error) {
-      setErrors({ general: 'An error occurred. Please try again.' });
-      toast.error('An error occurred. Please try again.');
+      setErrors({ general: 'An error occurred. Please try again.' })
+      toast.error('An error occurred. Please try again.')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-6">
-            <ArrowLeft className="h-4 w-4 mr-2" />
+    <div className='min-h-screen bg-gray-50 flex items-center justify-center p-4'>
+      <div className='w-full max-w-md'>
+        <div className='text-center mb-8'>
+          <Link to='/' className='inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-6'>
+            <ArrowLeft className='h-4 w-4 mr-2' />
             Back to Home
           </Link>
-          <div className="flex items-center gap-3 justify-center mb-4">
-            <GraduationCap className="h-10 w-10 text-primary" />
-            <h1 className="text-3xl">SmartGrade</h1>
+          <div className='flex items-center gap-3 justify-center mb-4'>
+            <GraduationCap className='h-10 w-10 text-primary' />
+            <h1 className='text-3xl'>SmartGrade</h1>
           </div>
         </div>
 
@@ -102,39 +103,33 @@ export function StudentLogin() {
             <CardDescription>Enter your credentials to access the student portal</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+            <form onSubmit={handleSubmit} className='space-y-4'>
+              <div className='space-y-2'>
+                <Label htmlFor='email'>Email</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="student@university.edu"
+                  id='email'
+                  type='email'
+                  placeholder='student@university.edu'
                   value={formData.email}
                   onChange={(e) => handleChange('email', e.target.value)}
                   required
                 />
-                {errors.email && (
-                  <p className="text-sm text-red-600">{errors.email}</p>
-                )}
+                {errors.email && <p className='text-sm text-red-600'>{errors.email}</p>}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+              <div className='space-y-2'>
+                <Label htmlFor='password'>Password</Label>
                 <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
+                  id='password'
+                  type='password'
+                  placeholder='Enter your password'
                   value={formData.password}
                   onChange={(e) => handleChange('password', e.target.value)}
                   required
                 />
-                {errors.password && (
-                  <p className="text-sm text-red-600">{errors.password}</p>
-                )}
+                {errors.password && <p className='text-sm text-red-600'>{errors.password}</p>}
               </div>
-              {errors.general && (
-                <p className="text-sm text-red-600">{errors.general}</p>
-              )}
-              <Button type="submit" className="w-full" disabled={loading}>
+              {errors.general && <p className='text-sm text-red-600'>{errors.general}</p>}
+              <Button type='submit' className='w-full' disabled={loading}>
                 {loading ? 'Signing in...' : 'Sign In'}
               </Button>
             </form>
@@ -142,5 +137,5 @@ export function StudentLogin() {
         </Card>
       </div>
     </div>
-  );
+  )
 }
