@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { API_BASE_URL, STORAGE_KEYS } from '../../../constants';
+import { API_BASE_URL, STUDENT_STORAGE_KEYS } from '../../../constants';
 
 // Create axios instance
 const axiosInstance = axios.create({
@@ -13,7 +13,7 @@ const axiosInstance = axios.create({
 
 axiosInstance.interceptors.request.use(
   (config) => {
-    return config; 
+    return config;
   },
   (error) => Promise.reject(error)
 );
@@ -24,10 +24,13 @@ axiosInstance.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // Chỉ clear user (sessionStorage)
-      sessionStorage.removeItem(STORAGE_KEYS.USER);
+      sessionStorage.removeItem(STUDENT_STORAGE_KEYS.USER);
 
-      // Redirect về login
-      window.location.href = '/login';
+      // Redirect về login chỉ khi KHÔNG phải đang ở trang login
+      const currentPath = window.location.pathname;
+      if (!currentPath.includes('/login')) {
+        window.location.href = '/student/login';
+      }
     }
     return Promise.reject(error);
   }

@@ -52,13 +52,14 @@ export function StudentLogin() {
     }
 
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    return Object.values(newErrors).every((error) => error === '')
   }
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!validate()) {
+      toast.error('Please fill in all required fields correctly')
       return
     }
 
@@ -66,18 +67,20 @@ export function StudentLogin() {
     setErrors({})
 
     try {
-      const success = await login(formData.email, formData.password)
+      console.log('Attempting login with:', formData.email)
+      const response = await login(formData.email, formData.password)
+      console.log('Login response:', response)
 
-      if (success) {
+      if (response.success === true) {
         navigate('/student/dashboard')
         toast.success('Login successful! Welcome to the student portal.')
-      } else {
-        setErrors({ general: 'Invalid email or password' })
-        toast.error('Invalid email or password')
       }
-    } catch (error) {
-      setErrors({ general: 'An error occurred. Please try again.' })
-      toast.error('An error occurred. Please try again.')
+    } catch (error: any) {
+      console.log('Login error caught:', error)
+      console.log('Error response:', error.response)
+      const errorMessage = error.response?.data?.message || 'Invalid email or password'
+      setErrors((prev) => ({ ...prev, general: errorMessage }))
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }

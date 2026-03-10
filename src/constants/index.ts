@@ -6,3 +6,13 @@ export const STORAGE_KEYS = {
   TOKEN: 'smartgrade_student_token',
   USER: 'smartgrade_student_user'
 }
+
+export const LECTURER_STORAGE_KEYS = {
+  TOKEN: 'smartgrade_lecturer_token',
+  USER: 'smartgrade_lecturer_user'
+}
+
+export const STUDENT_STORAGE_KEYS = {
+  TOKEN: 'smartgrade_student_token',
+  USER: 'smartgrade_student_user'
+}
