@@ -8,7 +8,7 @@ export default function App() {
     <AuthProvider>
       <RouterProvider router={router} />
       <ToastContainer
-        position="top-right"
+        position='top-right'
         autoClose={3000}
         hideProgressBar={false}
         newestOnTop
@@ -17,7 +17,7 @@ export default function App() {
         pauseOnFocusLoss
         draggable
         pauseOnHover
-        theme="light"
+        theme='light'
       />
     </AuthProvider>
   )

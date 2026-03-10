@@ -6,22 +6,68 @@ import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { GraduationCap, ArrowLeft } from 'lucide-react'
+import { toast } from 'react-toastify'
 
 export function LecturerLogin() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
   const { login } = useAuth()
   const navigate = useNavigate()
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
+  const [formData, setFormData] = useState({
+    username: '',
+    password: ''
+  })
+  const [loading, setLoading] = useState(false)
+  const [errors, setErrors] = useState({
+    username: '',
+    password: ''
+  })
 
-    if (login(email, password, 'lecturer')) {
-      navigate('/lecturer/dashboard')
-    } else {
-      setError('Invalid credentials')
+  // Thay thế hàm handleChange cũ bằng hàm này để tránh lỗi type "any"
+  const handleChange = (field: keyof typeof formData, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+    setErrors((prev) => ({ ...prev, [field]: '' }))
+  }
+  const validate = () => {
+    const newErrors = {
+      username: '',
+      password: ''
+    }
+
+    if (!formData.username.trim()) {
+      newErrors.username = 'Vui lòng nhập tên đăng nhập'
+    }
+
+    if (!formData.password) {
+      newErrors.password = 'Vui lòng nhập mật khẩu'
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự'
+    }
+
+    setErrors(newErrors)
+    return Object.values(newErrors).every((error) => error === '')
+  }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    console.log(formData)
+
+    if (!validate()) {
+      toast.error('Vui lòng điền đầy đủ thông tin')
+      return
+    }
+    setLoading(true)
+    try {
+      console.log('first')
+      const response = await login(formData.username, formData.password, 'lecturer')
+      console.log(' Login response:', response)
+      if (response) {
+        toast.success('Đăng nhập thành công!')
+        navigate('/lecturer/dashboard')
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Tên đăng nhập hoặc mật khẩu không đúng!'
+      toast.error(errorMessage)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -47,15 +93,15 @@ export function LecturerLogin() {
           <CardContent>
             <form onSubmit={handleSubmit} className='space-y-4'>
               <div className='space-y-2'>
-                <Label htmlFor='email'>Email</Label>
+                <Label htmlFor='username'>Username</Label>
                 <Input
-                  id='email'
-                  type='email'
-                  placeholder='lecturer@university.edu'
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
+                  id='username'
+                  type='text'
+                  placeholder='Enter your username'
+                  value={formData.username}
+                  onChange={(e) => handleChange('username', e.target.value)}
                 />
+                {errors.username && <p className='text-sm text-red-600'>{errors.username}</p>}
               </div>
               <div className='space-y-2'>
                 <Label htmlFor='password'>Password</Label>
@@ -63,14 +109,13 @@ export function LecturerLogin() {
                   id='password'
                   type='password'
                   placeholder='Enter your password'
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
+                  value={formData.password}
+                  onChange={(e) => handleChange('password', e.target.value)}
                 />
+                {errors.password && <p className='text-sm text-red-600'>{errors.password}</p>}
               </div>
-              {error && <p className='text-sm text-red-600'>{error}</p>}
-              <Button type='submit' className='w-full'>
-                Sign In
+              <Button type='submit' className='w-full' disabled={loading}>
+                {loading ? 'Đang đăng nhập...' : 'Sign In'}
               </Button>
               <p className='text-xs text-center text-gray-500 mt-4'>Demo: Use any email and password to login</p>
             </form>
