@@ -1,4 +1,4 @@
-import { Link, Outlet, useNavigate } from 'react-router';
+import { NavLink, Outlet, useNavigate } from 'react-router';
 import { Button } from '../components/ui/button';
 import { BookOpen, FileText, MessageSquare, BarChart, LogOut, GraduationCap, Loader2 } from 'lucide-react';
 import { getCurrentUser, logout } from '../services/student/authService';
@@ -47,30 +47,54 @@ export function StudentLayout() {
       <nav className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex gap-1 overflow-x-auto">
-            <Link to="/student/dashboard">
-              <Button variant="ghost" className="rounded-none border-b-2 border-transparent hover:border-primary">
-                <BarChart className="h-4 w-4 mr-2" />
-                Dashboard
-              </Button>
-            </Link>
-            <Link to="/student/classes">
-              <Button variant="ghost" className="rounded-none border-b-2 border-transparent hover:border-primary">
-                <BookOpen className="h-4 w-4 mr-2" />
-                My Classes
-              </Button>
-            </Link>
-            <Link to="/student/assignments">
-              <Button variant="ghost" className="rounded-none border-b-2 border-transparent hover:border-primary">
-                <FileText className="h-4 w-4 mr-2" />
-                Assignments
-              </Button>
-            </Link>
-            <Link to="/student/messages">
-              <Button variant="ghost" className="rounded-none border-b-2 border-transparent hover:border-primary">
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Messages
-              </Button>
-            </Link>
+            <NavLink to="/student/dashboard" end>
+              {({ isActive }) => (
+                <Button
+                  variant="ghost"
+                  className={`rounded-none border-b-2 hover:border-primary focus-visible:border-primary ${isActive ? 'border-primary text-primary bg-primary/5' : 'border-transparent'
+                    }`}
+                >
+                  <BarChart className="h-4 w-4 mr-2" />
+                  Dashboard
+                </Button>
+              )}
+            </NavLink>
+            <NavLink to="/student/classes">
+              {({ isActive }) => (
+                <Button
+                  variant="ghost"
+                  className={`rounded-none border-b-2 hover:border-primary focus-visible:border-primary ${isActive ? 'border-primary text-primary bg-primary/5' : 'border-transparent'
+                    }`}
+                >
+                  <BookOpen className="h-4 w-4 mr-2" />
+                  My Classes
+                </Button>
+              )}
+            </NavLink>
+            <NavLink to="/student/assignments">
+              {({ isActive }) => (
+                <Button
+                  variant="ghost"
+                  className={`rounded-none border-b-2 hover:border-primary focus-visible:border-primary ${isActive ? 'border-primary text-primary bg-primary/5' : 'border-transparent'
+                    }`}
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Assignments
+                </Button>
+              )}
+            </NavLink>
+            <NavLink to="/student/messages">
+              {({ isActive }) => (
+                <Button
+                  variant="ghost"
+                  className={`rounded-none border-b-2 hover:border-primary focus-visible:border-primary ${isActive ? 'border-primary text-primary bg-primary/5' : 'border-transparent'
+                    }`}
+                >
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Messages
+                </Button>
+              )}
+            </NavLink>
           </div>
         </div>
       </nav>

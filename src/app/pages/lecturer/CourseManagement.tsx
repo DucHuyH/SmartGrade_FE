@@ -91,7 +91,7 @@ export function CourseManagement() {
               Create Course
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-106.25">
             <DialogHeader>
               <DialogTitle>Create New Course</DialogTitle>
               <DialogDescription>Add a new course to your teaching schedule</DialogDescription>
@@ -159,7 +159,7 @@ export function CourseManagement() {
         />
         <div className="flex gap-2">
           <Select value={semesterFilter} onValueChange={setSemesterFilter}>
-            <SelectTrigger className="w-[240px]">
+            <SelectTrigger className="w-60">
               <Filter className="h-4 w-4 mr-2" />
               <SelectValue placeholder="Filter by semester" />
             </SelectTrigger>
