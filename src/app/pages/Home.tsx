@@ -55,7 +55,7 @@ export function Home() {
               </div>
               <CardTitle className='text-center'>Student Portal</CardTitle>
               <CardDescription className='text-center'>
-                View assignments, submit work, and track your progress
+                View assignments, submit work, view grades, and track your progress.
               </CardDescription>
             </CardHeader>
             <CardContent>

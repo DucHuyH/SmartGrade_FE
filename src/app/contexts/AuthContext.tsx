@@ -21,13 +21,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  console.log(user)
 
   const login = async (email: string, password: string, role: 'lecturer' | 'student'): Promise<boolean> => {
     const response = await lectureLogin(email, password)
     console.log('authContext:', response)
 
-    if (response.success) {
+    if (response.data.success) {
       const user: User = {
         id: response.data.user.id,
         name: response.data.user.name,

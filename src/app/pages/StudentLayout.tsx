@@ -1,15 +1,25 @@
 import { Link, Outlet, useNavigate } from 'react-router';
-import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
-import { BookOpen, FileText, MessageSquare, BarChart, LogOut, GraduationCap } from 'lucide-react';
+import { BookOpen, FileText, MessageSquare, BarChart, LogOut, GraduationCap, Loader2 } from 'lucide-react';
+import { getCurrentUser, logout } from '../services/student/authService';
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
 
 export function StudentLayout() {
-  const { user, logout } = useAuth();
+  const user = getCurrentUser();
+  const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      setIsLogoutDialogOpen(false);
+      navigate('/student/login', { replace: true });
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   return (
@@ -24,7 +34,7 @@ export function StudentLayout() {
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-600">{user?.name}</span>
-              <Button variant="outline" size="sm" onClick={handleLogout}>
+              <Button variant="outline" size="sm" onClick={() => setIsLogoutDialogOpen(true)}>
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
               </Button>
@@ -69,6 +79,33 @@ export function StudentLayout() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Outlet />
       </main>
+
+      <Dialog
+        open={isLogoutDialogOpen}
+        onOpenChange={(open) => {
+          if (!isLoggingOut) {
+            setIsLogoutDialogOpen(open);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm logout</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to log out?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsLogoutDialogOpen(false)} disabled={isLoggingOut}>
+              No
+            </Button>
+            <Button onClick={handleConfirmLogout} disabled={isLoggingOut}>
+              {isLoggingOut ? <Loader2 className="h-4 w-4 animate-spin text-white" /> : null}
+              {isLoggingOut ? 'Logging out...' : 'Yes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

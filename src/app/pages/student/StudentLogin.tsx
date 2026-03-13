@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
-import { GraduationCap, ArrowLeft } from 'lucide-react'
+import { GraduationCap, ArrowLeft, Loader2 } from 'lucide-react'
 import { toast } from 'react-toastify'
 import { login } from '../../services/student/authService'
 
@@ -71,9 +71,9 @@ export function StudentLogin() {
       const response = await login(formData.email, formData.password)
       console.log('Login response:', response)
 
-      if (response.success === true) {
+      if (response.data.success === true) {
         navigate('/student/dashboard')
-        toast.success('Login successful! Welcome to the student portal.')
+        toast.success('Login successful! Welcome to the Student portal.')
       }
     } catch (error: any) {
       console.log('Login error caught:', error)
@@ -133,6 +133,7 @@ export function StudentLogin() {
               </div>
               {errors.general && <p className='text-sm text-red-600'>{errors.general}</p>}
               <Button type='submit' className='w-full' disabled={loading}>
+                {loading ? <Loader2 className='h-4 w-4 animate-spin text-white' /> : null}
                 {loading ? 'Signing in...' : 'Sign In'}
               </Button>
             </form>

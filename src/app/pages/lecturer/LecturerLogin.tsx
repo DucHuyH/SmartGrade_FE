@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Label } from '../../components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
-import { GraduationCap, ArrowLeft } from 'lucide-react'
+import { GraduationCap, ArrowLeft, Loader2 } from 'lucide-react'
 import { toast } from 'react-toastify'
 
 export function LecturerLogin() {
@@ -34,13 +34,13 @@ export function LecturerLogin() {
     }
 
     if (!formData.username.trim()) {
-      newErrors.username = 'Vui lòng nhập tên đăng nhập'
+      newErrors.username = 'Username is required'
     }
 
     if (!formData.password) {
-      newErrors.password = 'Vui lòng nhập mật khẩu'
+      newErrors.password = 'Password is required'
     } else if (formData.password.length < 6) {
-      newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự'
+      newErrors.password = 'Password must be at least 6 characters'
     }
 
     setErrors(newErrors)
@@ -51,20 +51,19 @@ export function LecturerLogin() {
     console.log(formData)
 
     if (!validate()) {
-      toast.error('Vui lòng điền đầy đủ thông tin')
+      toast.error('Please fill in all required fields correctly')
       return
     }
     setLoading(true)
     try {
-      console.log('first')
       const response = await login(formData.username, formData.password, 'lecturer')
       console.log(' Login response:', response)
       if (response) {
-        toast.success('Đăng nhập thành công!')
+        toast.success('Login successful! Welcome to Lecturer portal.')
         navigate('/lecturer/dashboard')
       }
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Tên đăng nhập hoặc mật khẩu không đúng!'
+      const errorMessage = error.response?.data?.message || 'Invalid username or password!'
       toast.error(errorMessage)
     } finally {
       setLoading(false)
@@ -115,9 +114,10 @@ export function LecturerLogin() {
                 {errors.password && <p className='text-sm text-red-600'>{errors.password}</p>}
               </div>
               <Button type='submit' className='w-full' disabled={loading}>
-                {loading ? 'Đang đăng nhập...' : 'Sign In'}
+                {loading ? <Loader2 className='h-4 w-4 animate-spin text-white' /> : null}
+                {loading ? 'Signing in...' : 'Sign In'}
               </Button>
-              <p className='text-xs text-center text-gray-500 mt-4'>Demo: Use any email and password to login</p>
+
             </form>
           </CardContent>
         </Card>

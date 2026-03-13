@@ -5,6 +5,7 @@ import { StudentLogin } from './app/pages/student/StudentLogin'
 import { LecturerLayout } from './app/pages/LecturerLayout'
 import { StudentLayout } from './app/pages/StudentLayout'
 import { LecturerDashboard } from './app/pages/lecturer/LecturerDashboard'
+import { CourseManagement } from './app/pages/lecturer/CourseManagement'
 import { StudentDashboard } from './app/pages/student/StudentDashboard'
 import { ErrorBoundary } from './app/components/ErrorBoundary'
 
@@ -30,6 +31,10 @@ export const router = createBrowserRouter([
       {
         path: 'dashboard',
         Component: LecturerDashboard
+      },
+      {
+        path: 'courses',
+        Component: CourseManagement
       }
     ]
   },
