@@ -4,8 +4,11 @@ import { BookOpen, FileText, MessageSquare, BarChart, LogOut, GraduationCap, Loa
 import { getCurrentUser, logout } from '../services/student/authService';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { useActivityTrackerStudent } from '../../hooks/useActivityTrackerStudent';
 
 export function StudentLayout() {
+  useActivityTrackerStudent();
+
   const user = getCurrentUser();
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);

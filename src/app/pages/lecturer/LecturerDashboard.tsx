@@ -3,16 +3,16 @@ import { Users, BookOpen, FileText, CheckCircle, Clock, AlertCircle } from 'luci
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 
 const gradeDistribution = [
-  { grade: 'A', count: 12 },
-  { grade: 'B', count: 18 },
-  { grade: 'C', count: 15 },
-  { grade: 'D', count: 8 },
-  { grade: 'F', count: 3 },
+  { grade: 'A', count: 0 },
+  { grade: 'B', count: 0 },
+  { grade: 'C', count: 0 },
+  { grade: 'D', count: 0 },
+  { grade: 'F', count: 0 },
 ];
 
 const submissionData = [
-  { name: 'Submitted', value: 42, color: '#22c55e' },
-  { name: 'Pending', value: 14, color: '#f59e0b' },
+  { name: 'Submitted', value: 0, color: '#22c55e' },
+  { name: 'Pending', value: 0, color: '#f59e0b' },
 ];
 
 const recentActivity = [

@@ -4,8 +4,11 @@ import { Button } from '../components/ui/button';
 import { BookOpen, MessageSquare, BarChart, LogOut, GraduationCap, Loader2 } from 'lucide-react';
 import { getCurrentUser, logout } from '../services/lecturer/authService';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { useActivityTracker } from '../../hooks/useActivityTrackerLecturer';
 
 export function LecturerLayout() {
+  useActivityTracker();
+
   const user = getCurrentUser();
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);

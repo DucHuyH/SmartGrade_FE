@@ -9,6 +9,6 @@ export const {
   getToken,
   isAuthenticated,
   ping,
-  changePassword,
-  verifyToken
+  // changePassword,
+  // verifyToken
 } = createAuthService(axiosInstance, lecturerAuthConfig)

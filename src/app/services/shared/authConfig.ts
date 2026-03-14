@@ -13,6 +13,7 @@ export interface AuthRoleConfig {
     logoutPath: string
     loginRedirectPath: string
     storageKeys: AuthStorageKeys
+    pingPath?: string
 }
 
 export const lecturerAuthConfig: AuthRoleConfig = {
@@ -20,7 +21,8 @@ export const lecturerAuthConfig: AuthRoleConfig = {
     loginPath: 'login/lecturer',
     logoutPath: 'logout',
     loginRedirectPath: '/lecturer/login',
-    storageKeys: LECTURER_STORAGE_KEYS
+    storageKeys: LECTURER_STORAGE_KEYS,
+    pingPath: 'ping'
 }
 
 export const studentAuthConfig: AuthRoleConfig = {
@@ -28,5 +30,6 @@ export const studentAuthConfig: AuthRoleConfig = {
     loginPath: 'login/student',
     logoutPath: 'logout',
     loginRedirectPath: '/student/login',
-    storageKeys: STUDENT_STORAGE_KEYS
+    storageKeys: STUDENT_STORAGE_KEYS,
+    pingPath: 'ping'
 }

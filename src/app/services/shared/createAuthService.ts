@@ -9,7 +9,7 @@ export const createAuthService = (axiosInstance: AxiosInstance, authConfig: Auth
     const login = async (email: string, password: string) => {
         try {
             const response = await axiosInstance.post(
-                authConfig.loginPath,
+                `/auth/${authConfig.loginPath}`,
                 { email, password },
                 { withCredentials: true }
             )
@@ -35,7 +35,7 @@ export const createAuthService = (axiosInstance: AxiosInstance, authConfig: Auth
 
     const logout = async () => {
         try {
-            const response = await axiosInstance.post(authConfig.logoutPath, {}, { withCredentials: true })
+            const response = await axiosInstance.post(`/auth/${authConfig.logoutPath}`, {}, { withCredentials: true })
             if (response?.status === 200) {
                 toast.success('Logout successful!')
             } else {
@@ -61,7 +61,7 @@ export const createAuthService = (axiosInstance: AxiosInstance, authConfig: Auth
 
     const ping = async () => {
         try {
-            const response = await axiosInstance.post('ping', {}, { withCredentials: true })
+            const response = await axiosInstance.post(`/auth/${authConfig.pingPath}`, {}, { withCredentials: true })
             return response.data
         } catch (error) {
             console.error('Ping error:', error)
@@ -69,26 +69,26 @@ export const createAuthService = (axiosInstance: AxiosInstance, authConfig: Auth
         }
     }
 
-    const changePassword = async (oldPassword: string, newPassword: string) => {
-        try {
-            const response = await axiosInstance.post('auth/change-password', {
-                oldPassword,
-                newPassword
-            })
-            return response.data
-        } catch (error: any) {
-            throw error
-        }
-    }
+    // const changePassword = async (oldPassword: string, newPassword: string) => {
+    //     try {
+    //         const response = await axiosInstance.post(`/auth/${authConfig.changePasswordPath}`, {
+    //             oldPassword,
+    //             newPassword
+    //         }, { withCredentials: true })
+    //         return response.data
+    //     } catch (error: any) {
+    //         throw error
+    //     }
+    // }
 
-    const verifyToken = async () => {
-        try {
-            const response = await axiosInstance.get('auth/verify')
-            return response.data
-        } catch (error: any) {
-            throw error
-        }
-    }
+    // const verifyToken = async () => {
+    //     try {
+    //         const response = await axiosInstance.get(`/auth/${authConfig.verifyTokenPath}`, { withCredentials: true })
+    //         return response.data
+    //     } catch (error: any) {
+    //         throw error
+    //     }
+    // }
 
     return {
         login,
@@ -97,7 +97,7 @@ export const createAuthService = (axiosInstance: AxiosInstance, authConfig: Auth
         getToken,
         isAuthenticated,
         ping,
-        changePassword,
-        verifyToken
+        // changePassword,
+        // verifyToken
     }
 }

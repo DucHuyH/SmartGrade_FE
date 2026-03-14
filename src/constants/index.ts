@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'https://smartgrade-be.onrender.com/api/v1/auth/'
+export const API_BASE_URL = 'https://smartgrade-be.onrender.com/api/v1'
 
 // import.meta.env.VITE_API_BASE_URL ||
 // Local Storage Keys
