@@ -8,6 +8,7 @@ import { LecturerDashboard } from './app/pages/lecturer/LecturerDashboard'
 import { CourseManagement } from './app/pages/lecturer/CourseManagement'
 import { CourseAssignments } from './app/pages/lecturer/CourseAsssigments'
 import { CreateAssignment } from './app/pages/lecturer/CreateAssignment'
+import { EditAssignment } from './app/pages/lecturer/EditAssignment'
 
 
 import { StudentDashboard } from './app/pages/student/StudentDashboard'
@@ -47,6 +48,10 @@ export const router = createBrowserRouter([
       {
         path: 'assignments/create',
         Component: CreateAssignment
+      },
+      {
+        path: 'assignments/:assignment_id/edit',
+        Component: EditAssignment
       },
     ]
   },
