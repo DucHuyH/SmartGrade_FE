@@ -6,14 +6,11 @@ import { Badge } from '../../components/ui/badge';
 import { Breadcrumb } from '../../components/Breadcrumb';
 import { SearchBar } from '../../components/SearchBar';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
-import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
-import { Textarea } from '../../components/ui/textarea';
 import { Pagination } from '../../components/ui/pagination';
 import { BookOpen, Calendar, FileText, Loader2, MoreVertical, Plus, Trash2, Users } from 'lucide-react';
 import { Course } from '../../../model';
 import { Assignment } from '../../../model/assignment';
-import { deleteAssignment, getAssignmentDetails, getAssignmentsForCourse, updateAssignment } from '../../services/lecturer/assignmentService';
+import { deleteAssignment, getAssignmentDetails, getAssignmentsForCourse } from '../../services/lecturer/assignmentService';
 import { getCourseDetails } from '../../services/lecturer/courseService';
 import { toast } from 'react-toastify';
 
@@ -24,77 +21,11 @@ type PaginationMeta = {
     limit: number;
 };
 
-type AssignmentFormState = {
-    title: string;
-    description: string;
-    questions: string;
-    requirements: string;
-    dueDateLocal: string;
-    maxScore: string;
-    allowedFileTypesInput: string;
-    maxFileSizeMb: string;
-    allowLateSubmissions: boolean;
-    enableAiGrading: boolean;
-};
-
 const DEFAULT_PAGINATION: PaginationMeta = {
     currentPage: 1,
     totalPages: 1,
     totalItems: 0,
     limit: 10,
-};
-
-const toLocalDateTimeInput = (value?: string) => {
-    if (!value) {
-        return '';
-    }
-
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-        return '';
-    }
-
-    const timezoneOffsetInMs = date.getTimezoneOffset() * 60 * 1000;
-    const localDate = new Date(date.getTime() - timezoneOffsetInMs);
-    return localDate.toISOString().slice(0, 16);
-};
-
-const toIsoDate = (value: string) => {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-        return value;
-    }
-    return date.toISOString();
-};
-
-const parseAssignmentsPayload = (payload: unknown): { assignments: Assignment[]; pagination: PaginationMeta } => {
-    const root = (payload as Record<string, unknown>)?.data ?? payload;
-    const rootRecord = (root as Record<string, unknown>) ?? {};
-
-    const assignmentCandidates = [
-        rootRecord.assignment,
-        rootRecord.assignments,
-        (rootRecord.data as Record<string, unknown> | undefined)?.assignment,
-        (rootRecord.data as Record<string, unknown> | undefined)?.assignments,
-    ];
-
-    const assignments = assignmentCandidates.find((candidate) => Array.isArray(candidate));
-    const paginationCandidate =
-        (rootRecord.pagination as Record<string, unknown> | undefined) ??
-        ((rootRecord.data as Record<string, unknown> | undefined)?.pagination as Record<string, unknown> | undefined) ??
-        {};
-
-    const normalizedPagination: PaginationMeta = {
-        currentPage: Number(paginationCandidate.currentPage ?? paginationCandidate.page ?? DEFAULT_PAGINATION.currentPage) || 1,
-        totalPages: Number(paginationCandidate.totalPages ?? DEFAULT_PAGINATION.totalPages) || 1,
-        totalItems: Number(paginationCandidate.totalItems ?? paginationCandidate.total ?? DEFAULT_PAGINATION.totalItems) || 0,
-        limit: Number(paginationCandidate.limit ?? DEFAULT_PAGINATION.limit) || DEFAULT_PAGINATION.limit,
-    };
-
-    return {
-        assignments: Array.isArray(assignments) ? (assignments as Assignment[]) : [],
-        pagination: normalizedPagination,
-    };
 };
 
 const parseCoursePayload = (payload: unknown): Course | null => {
@@ -120,19 +51,6 @@ const parseAssignmentDetailPayload = (payload: unknown): Assignment | null => {
 
     return assignment?.assignment_id ? assignment : null;
 };
-
-const createFormStateFromAssignment = (assignment: Assignment): AssignmentFormState => ({
-    title: assignment.title ?? '',
-    description: assignment.description ?? '',
-    questions: assignment.questions ?? '',
-    requirements: assignment.requirements ?? '',
-    dueDateLocal: toLocalDateTimeInput(assignment.due_date),
-    maxScore: String(assignment.max_score ?? 100),
-    allowedFileTypesInput: assignment.allowed_file_types?.join(', ') ?? '',
-    maxFileSizeMb: String(assignment.max_file_size_mb ?? 10),
-    allowLateSubmissions: assignment.allow_late_submissions ?? true,
-    enableAiGrading: assignment.enable_ai_grading ?? true,
-});
 
 const getAssignmentStatus = (assignment: Assignment) => {
     const now = new Date();
@@ -164,7 +82,6 @@ export function CourseAssignments() {
     const [isLoadingCourse, setIsLoadingCourse] = useState(false);
     const [isLoadingAssignments, setIsLoadingAssignments] = useState(false);
     const [isLoadingDetails, setIsLoadingDetails] = useState(false);
-    const [isSavingEdit, setIsSavingEdit] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [currentPage, setCurrentPage] = useState(DEFAULT_PAGINATION.currentPage);
     const [totalPages, setTotalPages] = useState(DEFAULT_PAGINATION.totalPages);
@@ -173,10 +90,8 @@ export function CourseAssignments() {
 
     const [activeMenuAssignmentId, setActiveMenuAssignmentId] = useState<string | null>(null);
     const [detailOpen, setDetailOpen] = useState(false);
-    const [editOpen, setEditOpen] = useState(false);
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
     const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
-    const [editForm, setEditForm] = useState<AssignmentFormState | null>(null);
 
     const actionMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -234,13 +149,14 @@ export function CourseAssignments() {
         setIsLoadingAssignments(true);
         try {
             const response = await getAssignmentsForCourse(course_id, currentPage, limit, debouncedSearchQuery);
-            console.log('Raw response for assignments:', response.data?.course);
-            const { assignments: parsedAssignments, pagination } = parseAssignmentsPayload(response.data.course);
 
-            setAssignments(parsedAssignments);
-            setTotalItems(pagination.totalItems);
-            setTotalPages(pagination.totalPages);
-            setLimit(pagination.limit);
+            const assignmentList = response.data.course || [];
+            const paginationData = response.data.pagination || {};
+
+            setAssignments(assignmentList);
+            setTotalItems(paginationData.totalItems || 0);
+            setTotalPages(paginationData.totalPages || 1);
+            setLimit(paginationData.limit || 10);
         } catch (error) {
             console.error('Error fetching assignments:', error);
             setAssignments([]);
@@ -303,95 +219,15 @@ export function CourseAssignments() {
         }
     };
 
-    const openEditDialog = async (assignmentId: string) => {
+    const openEditDialog = (assignmentId: string) => {
         setActiveMenuAssignmentId(null);
-        setIsLoadingDetails(true);
-
-        try {
-            const response = await getAssignmentDetails(assignmentId);
-            const assignmentDetails = parseAssignmentDetailPayload(response);
-
-            if (!assignmentDetails) {
-                toast.error('Cannot find assignment details to edit.');
-                return;
-            }
-
-            setSelectedAssignment(assignmentDetails);
-            setEditForm(createFormStateFromAssignment(assignmentDetails));
-            setEditOpen(true);
-        } catch (error) {
-            console.error('Error fetching assignment for edit:', error);
-            toast.error('Failed to load assignment for editing.');
-        } finally {
-            setIsLoadingDetails(false);
-        }
+        navigate(`/lecturer/assignments/${assignmentId}/edit?course=${course_id}`);
     };
 
     const openDeleteConfirm = (assignment: Assignment) => {
         setSelectedAssignment(assignment);
         setActiveMenuAssignmentId(null);
         setConfirmDeleteOpen(true);
-    };
-
-    const handleSaveEdit = async () => {
-        if (!selectedAssignment?.assignment_id || !editForm) {
-            toast.error('Cannot find assignment to update.');
-            return;
-        }
-
-        if (!editForm.title.trim()) {
-            toast.error('Assignment title is required.');
-            return;
-        }
-
-        if (!editForm.dueDateLocal) {
-            toast.error('Assignment deadline is required.');
-            return;
-        }
-
-        const maxScore = Number(editForm.maxScore);
-        if (!Number.isFinite(maxScore) || maxScore <= 0) {
-            toast.error('Max score must be greater than 0.');
-            return;
-        }
-
-        const maxFileSizeMb = Number(editForm.maxFileSizeMb);
-        if (!Number.isFinite(maxFileSizeMb) || maxFileSizeMb <= 0) {
-            toast.error('Max file size must be greater than 0.');
-            return;
-        }
-
-        const allowedFileTypes = editForm.allowedFileTypesInput
-            .split(',')
-            .map((item) => item.trim())
-            .filter(Boolean);
-
-        setIsSavingEdit(true);
-        try {
-            await updateAssignment(selectedAssignment.assignment_id, {
-                title: editForm.title.trim(),
-                description: editForm.description.trim(),
-                questions: editForm.questions.trim(),
-                requirements: editForm.requirements.trim(),
-                due_date: toIsoDate(editForm.dueDateLocal),
-                max_score: maxScore,
-                allowed_file_types: allowedFileTypes,
-                max_file_size_mb: maxFileSizeMb,
-                allow_late_submissions: editForm.allowLateSubmissions,
-                enable_ai_grading: editForm.enableAiGrading,
-            });
-
-            setEditOpen(false);
-            setSelectedAssignment(null);
-            setEditForm(null);
-            await fetchAssignments();
-            toast.success('Assignment updated successfully!');
-        } catch (error) {
-            console.error('Error updating assignment:', error);
-            toast.error('Failed to update assignment.');
-        } finally {
-            setIsSavingEdit(false);
-        }
     };
 
     const handleDeleteAssignment = async () => {
@@ -680,161 +516,6 @@ export function CourseAssignments() {
                     ) : (
                         <p className="text-sm text-gray-500">No assignment details available.</p>
                     )}
-                </DialogContent>
-            </Dialog>
-
-            <Dialog open={editOpen} onOpenChange={setEditOpen}>
-                <DialogContent className="sm:max-w-3xl">
-                    <DialogHeader>
-                        <DialogTitle>Edit Assignment</DialogTitle>
-                        <DialogDescription>Update assignment information and save changes.</DialogDescription>
-                    </DialogHeader>
-
-                    {editForm ? (
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="edit-title">Title</Label>
-                                <Input
-                                    id="edit-title"
-                                    value={editForm.title}
-                                    onChange={(event) =>
-                                        setEditForm((prev) => (prev ? { ...prev, title: event.target.value } : prev))
-                                    }
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="edit-description">Description</Label>
-                                <Textarea
-                                    id="edit-description"
-                                    rows={4}
-                                    value={editForm.description}
-                                    onChange={(event) =>
-                                        setEditForm((prev) => (prev ? { ...prev, description: event.target.value } : prev))
-                                    }
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="edit-questions">Questions</Label>
-                                <Textarea
-                                    id="edit-questions"
-                                    rows={4}
-                                    value={editForm.questions}
-                                    onChange={(event) =>
-                                        setEditForm((prev) => (prev ? { ...prev, questions: event.target.value } : prev))
-                                    }
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="edit-requirements">Requirements</Label>
-                                <Textarea
-                                    id="edit-requirements"
-                                    rows={4}
-                                    value={editForm.requirements}
-                                    onChange={(event) =>
-                                        setEditForm((prev) => (prev ? { ...prev, requirements: event.target.value } : prev))
-                                    }
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="edit-deadline">Deadline</Label>
-                                    <Input
-                                        id="edit-deadline"
-                                        type="datetime-local"
-                                        value={editForm.dueDateLocal}
-                                        onChange={(event) =>
-                                            setEditForm((prev) =>
-                                                prev ? { ...prev, dueDateLocal: event.target.value } : prev
-                                            )
-                                        }
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="edit-score">Max Score</Label>
-                                    <Input
-                                        id="edit-score"
-                                        type="number"
-                                        min={1}
-                                        value={editForm.maxScore}
-                                        onChange={(event) =>
-                                            setEditForm((prev) => (prev ? { ...prev, maxScore: event.target.value } : prev))
-                                        }
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="edit-file-types">Allowed File Types (comma separated)</Label>
-                                    <Input
-                                        id="edit-file-types"
-                                        placeholder="pdf, docx, xlsx"
-                                        value={editForm.allowedFileTypesInput}
-                                        onChange={(event) =>
-                                            setEditForm((prev) =>
-                                                prev ? { ...prev, allowedFileTypesInput: event.target.value } : prev
-                                            )
-                                        }
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="edit-max-size">Max File Size (MB)</Label>
-                                    <Input
-                                        id="edit-max-size"
-                                        type="number"
-                                        min={1}
-                                        value={editForm.maxFileSizeMb}
-                                        onChange={(event) =>
-                                            setEditForm((prev) =>
-                                                prev ? { ...prev, maxFileSizeMb: event.target.value } : prev
-                                            )
-                                        }
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={editForm.allowLateSubmissions}
-                                        onChange={(event) =>
-                                            setEditForm((prev) =>
-                                                prev ? { ...prev, allowLateSubmissions: event.target.checked } : prev
-                                            )
-                                        }
-                                        className="rounded"
-                                    />
-                                    <span className="text-sm">Allow late submissions</span>
-                                </label>
-                                <label className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={editForm.enableAiGrading}
-                                        onChange={(event) =>
-                                            setEditForm((prev) =>
-                                                prev ? { ...prev, enableAiGrading: event.target.checked } : prev
-                                            )
-                                        }
-                                        className="rounded"
-                                    />
-                                    <span className="text-sm">Enable AI grading</span>
-                                </label>
-                            </div>
-                        </div>
-                    ) : (
-                        <p className="text-sm text-gray-500">No assignment selected.</p>
-                    )}
-
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setEditOpen(false)} disabled={isSavingEdit}>
-                            Cancel
-                        </Button>
-                        <Button onClick={handleSaveEdit} disabled={isSavingEdit || !editForm}>
-                            {isSavingEdit ? 'Saving...' : 'Save Changes'}
-                        </Button>
-                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 
