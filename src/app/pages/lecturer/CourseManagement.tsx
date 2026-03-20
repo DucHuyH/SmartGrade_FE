@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -7,10 +7,11 @@ import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Pagination } from '../../components/ui/pagination';
 import { SearchBar } from '../../components/SearchBar';
-import { Plus, Users, FileText, Filter, Loader2 } from 'lucide-react';
+import { Plus, Users, FileText, Filter, Loader2, MoreVertical } from 'lucide-react';
 import { Course } from '../../../model';
-import { getAllCourses, createCourse } from '../../services/lecturer/courseService';
+import { getAllCourses, createCourse, updateCourse, deleteCourse } from '../../services/lecturer/courseService';
 import { getCurrentUser } from '../../services/lecturer/authService';
 import { toast } from 'react-toastify';
 
@@ -37,13 +38,28 @@ export function CourseManagement() {
 
   const [courseName, setcourseName] = useState('');
   const [courseCode, setcourseCode] = useState('');
-  const [description, setDescription] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [selectedSemester, setSelectedSemester] = useState(SEMESTERS[0]);
   const [selectedAcademicYear, setSelectedAcademicYear] = useState(ACADEMIC_YEARS[0]);
   const [semesterFilter, setSemesterFilter] = useState('all');
   const [errors, setErrors] = useState<FormErrors>({});
+  const [editErrors, setEditErrors] = useState<FormErrors>({});
   const [isLoadingCourses, setIsLoadingCourses] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isDeletingCourse, setIsDeletingCourse] = useState(false);
+
+  const [activeMenuCourseId, setActiveMenuCourseId] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [confirmEditOpen, setConfirmEditOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+
+  const [editCourseName, setEditCourseName] = useState('');
+  const [editCourseCode, setEditCourseCode] = useState('');
+  const [editSemester, setEditSemester] = useState(SEMESTERS[0]);
+  const [editAcademicYear, setEditAcademicYear] = useState(ACADEMIC_YEARS[0]);
+  const actionMenuRef = useRef<HTMLDivElement | null>(null);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -52,19 +68,49 @@ export function CourseManagement() {
   const [limit, setLimit] = useState(10);
 
   useEffect(() => {
-    fetchCourses();
-  }, []);
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 400);
 
+    return () => window.clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchQuery, semesterFilter]);
+
+  useEffect(() => {
+    fetchCourses();
+  }, [currentPage, limit, debouncedSearchQuery, semesterFilter]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
+        setActiveMenuCourseId(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const fetchCourses = async () => {
     setIsLoadingCourses(true);
     try {
-      const response = await getAllCourses();
+      const response = await getAllCourses({
+        page: currentPage,
+        limit,
+        search: debouncedSearchQuery,
+        semester: semesterFilter !== 'all' ? semesterFilter : undefined,
+      });
       if (response.success) {
-        setCourses(response.data.course);
-        setTotalItems(response.data.pagination.totalItems);
-        setTotalPages(response.data.pagination.totalPages);
-        setLimit(response.data.pagination.limit);
+        const courseData = response.data?.course ?? [];
+        const paginationData = response.data?.pagination;
+
+        setCourses(courseData);
+        setTotalItems(paginationData?.totalItems ?? 0);
+        setTotalPages(paginationData?.totalPages ?? 1);
+        setLimit(paginationData?.limit ?? 10);
 
       } else {
         setCourses([]);
@@ -100,6 +146,96 @@ export function CourseManagement() {
 
   };
 
+  const validateEditForm = () => {
+    const newErrors: FormErrors = {};
+
+    if (!editCourseName.trim()) {
+      newErrors.courseName = 'Course Name is required';
+    }
+
+    if (!editCourseCode.trim()) {
+      newErrors.courseCode = 'Course Code is required';
+    }
+
+    setEditErrors(newErrors);
+
+    return Object.values(newErrors).every((error) => error === '');
+  };
+
+  const openEditDialog = (course: Course) => {
+    setSelectedCourse(course);
+    setEditCourseName(course.name ?? '');
+    setEditCourseCode(course.course_code ?? '');
+    setEditSemester(course.semester ?? SEMESTERS[0]);
+    setEditAcademicYear(course.academic_year ?? ACADEMIC_YEARS[0]);
+    setEditErrors({});
+    setActiveMenuCourseId(null);
+    setEditOpen(true);
+  };
+
+  const openDeleteConfirm = (course: Course) => {
+    setSelectedCourse(course);
+    setActiveMenuCourseId(null);
+    setConfirmDeleteOpen(true);
+  };
+
+  const handleOpenConfirmEdit = () => {
+    if (!validateEditForm()) {
+      return;
+    }
+
+    setConfirmEditOpen(true);
+  };
+
+  const handleConfirmSaveEdit = async () => {
+    if (!selectedCourse?.course_id) {
+      toast.error('Cannot find course to update.');
+      return;
+    }
+
+    setIsSavingEdit(true);
+    try {
+      await updateCourse(selectedCourse.course_id, {
+        name: editCourseName,
+        course_code: editCourseCode,
+        semester: editSemester,
+        academic_year: editAcademicYear,
+      });
+
+      setConfirmEditOpen(false);
+      setEditOpen(false);
+      setSelectedCourse(null);
+      await fetchCourses();
+      toast.success('Course updated successfully!');
+    } catch (error) {
+      console.error('Error updating course:', error);
+      toast.error('Failed to update course. Please try again.');
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedCourse?.course_id) {
+      toast.error('Cannot find course to delete.');
+      return;
+    }
+
+    setIsDeletingCourse(true);
+    try {
+      await deleteCourse(selectedCourse.course_id);
+      setConfirmDeleteOpen(false);
+      setSelectedCourse(null);
+      await fetchCourses();
+      toast.success('Course deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting course:', error);
+      toast.error('Failed to delete course. Please try again.');
+    } finally {
+      setIsDeletingCourse(false);
+    }
+  };
+
   const handleCreateCourse = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) {
@@ -110,7 +246,6 @@ export function CourseManagement() {
         lecturer_id: user?.user_id,
         name: courseName,
         course_code: courseCode,
-        // description,
         academic_year: selectedAcademicYear,
         semester: selectedSemester,
       });
@@ -128,17 +263,13 @@ export function CourseManagement() {
     }
   };
 
-  // Filter courses based on search query and semester
-  const filteredcourses = courses.filter((course) => {
-    const courseNameText = (course.name ?? '').toLowerCase();
-    const courseCodeText = (course.course_code ?? '').toLowerCase();
-    const semesterText = (course.semester ?? '').toLowerCase();
-    const searchText = searchQuery.toLowerCase();
+  const handlePageChange = (page: number) => {
+    if (page < 1 || page > totalPages || page === currentPage) {
+      return;
+    }
 
-    const matchesSearch = courseNameText.includes(searchText) || courseCodeText.includes(searchText);
-    const matchesSemester = semesterFilter === 'all' || semesterText.startsWith(semesterFilter.toLowerCase());
-    return matchesSearch && matchesSemester;
-  });
+    setCurrentPage(page);
+  };
 
   return (
     <div className="space-y-6">
@@ -186,15 +317,7 @@ export function CourseManagement() {
                 />
                 {errors.courseCode && <p className="text-sm text-red-600">{errors.courseCode}</p>}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Brief description of the course"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
-              </div>
+              
               <div className="space-y-2">
                 <Label htmlFor="semester">Chọn học kỳ</Label>
                 <Select
@@ -237,6 +360,118 @@ export function CourseManagement() {
             </div>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+          <DialogContent className="sm:max-w-106.25">
+            <DialogHeader>
+              <DialogTitle>Edit Course</DialogTitle>
+              <DialogDescription>Update course information before saving changes</DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-course-name">Course Name <span className="text-red-500">*</span></Label>
+                <Input
+                  id="edit-course-name"
+                  placeholder="e.g., Data Structures"
+                  value={editCourseName}
+                  onChange={(e) => {
+                    setEditCourseName(e.target.value);
+                    setEditErrors((prev) => ({ ...prev, courseName: undefined }));
+                  }}
+                />
+                {editErrors.courseName && <p className="text-sm text-red-600">{editErrors.courseName}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-course-code">Course Code <span className="text-red-500">*</span></Label>
+                <Input
+                  id="edit-course-code"
+                  placeholder="e.g., CS301"
+                  value={editCourseCode}
+                  onChange={(e) => {
+                    setEditCourseCode(e.target.value);
+                    setEditErrors((prev) => ({ ...prev, courseCode: undefined }));
+                  }}
+                />
+                {editErrors.courseCode && <p className="text-sm text-red-600">{editErrors.courseCode}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-semester">Chọn học kỳ</Label>
+                <Select value={editSemester} onValueChange={setEditSemester}>
+                  <SelectTrigger id="edit-semester">
+                    <SelectValue placeholder="Select a semester">{editSemester}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SEMESTERS.map((semester) => (
+                      <SelectItem key={semester} value={semester}>
+                        {semester}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-academic-year">Chọn năm học</Label>
+                <Select value={editAcademicYear} onValueChange={setEditAcademicYear}>
+                  <SelectTrigger id="edit-academic-year">
+                    <SelectValue placeholder="Chọn năm học">{editAcademicYear}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ACADEMIC_YEARS.map((year) => (
+                      <SelectItem key={year} value={year}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+                <Button onClick={handleOpenConfirmEdit}>Save</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={confirmEditOpen} onOpenChange={setConfirmEditOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Confirm Save</DialogTitle>
+              <DialogDescription>Do you want to save changes for this course?</DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setConfirmEditOpen(false)} disabled={isSavingEdit}>
+                Cancel
+              </Button>
+              <Button onClick={handleConfirmSaveEdit} disabled={isSavingEdit}>
+                {isSavingEdit ? 'Saving...' : 'Confirm Save'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Confirm Delete</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to delete course {selectedCourse?.name ? `"${selectedCourse.name}"` : ''}? This action cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setConfirmDeleteOpen(false)} disabled={isDeletingCourse}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeletingCourse}>
+                {isDeletingCourse ? 'Deleting...' : 'Confirm Delete'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -271,7 +506,7 @@ export function CourseManagement() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {filteredcourses.map((course) => (
+          {courses.map((course) => (
             <Card key={course.course_id} className="hover:shadow-md transition-shadow">
               <CardHeader>
                 <div className="flex justify-between items-start">
@@ -279,7 +514,38 @@ export function CourseManagement() {
                     <CardTitle>{course.name}</CardTitle>
                     <CardDescription>{course.course_code}</CardDescription>
                   </div>
-                  <span className="text-xs bg-gray-100 px-2 py-1 rounded">{course.semester} {course.academic_year}</span>
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs bg-gray-100 px-2 py-1 rounded">{course.semester} {course.academic_year}</span>
+                    <div className="relative" ref={activeMenuCourseId === course.course_id ? actionMenuRef : null}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setActiveMenuCourseId((prev) => (prev === course.course_id ? null : course.course_id))}
+                        aria-label="Course actions"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+
+                      {activeMenuCourseId === course.course_id && (
+                        <div className="absolute right-0 top-10 z-20 min-w-28 rounded-md border bg-white p-1 shadow-md">
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start"
+                            onClick={() => openEditDialog(course)}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            className="w-full justify-start text-red-600 hover:text-red-700"
+                            onClick={() => openDeleteConfirm(course)}
+                          >
+                            Delete
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -311,7 +577,20 @@ export function CourseManagement() {
         </div>
       )}
 
-      {!isLoadingCourses && filteredcourses.length === 0 && (
+      {!isLoadingCourses && courses.length > 0 && (
+        <div className="space-y-3">
+          <div className="text-sm text-gray-500 text-center">
+            Showing {courses.length} courses on page {currentPage} of {totalPages} ({totalItems} total)
+          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
+        </div>
+      )}
+
+      {!isLoadingCourses && courses.length === 0 && (
         <div className="text-center py-12 text-gray-500">
           {searchQuery || semesterFilter !== 'all'
             ? 'No courses found matching your filters'

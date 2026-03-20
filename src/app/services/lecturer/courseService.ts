@@ -21,13 +21,36 @@ import axiosInstance from "./axios";
 //     }
 // };
 
-export const getAllCourses = async () => {
+type GetAllCoursesParams = {
+    page?: number;
+    limit?: number;
+    search?: string;
+    semester?: string;
+};
+
+export const getAllCourses = async ({
+    page = 1,
+    limit = 2,
+    search = "",
+    semester,
+}: GetAllCoursesParams) => {
     try {
-        const response = await axiosInstance.get("/courses");
+        const params: Record<string, string | number> = {
+            page,
+            limit,
+            search,
+        };
+
+        if (semester) {
+            params.semester = semester;
+        }
+
+        const response = await axiosInstance.get("/courses", {
+            params,
+        });
         if (!response.data || !response.data.data) {
             throw new Error("Invalid response format: missing 'data' field");
         }
-        console.log(response.data.data);
         return response.data.data;
     } catch (error) {
         console.error("Error fetching courses:", error);
@@ -39,7 +62,7 @@ export const getAllCourses = async () => {
 export const getCourseDetails = async (courseId: string) => {
     try {
         const response = await axiosInstance.get(`/courses/${courseId}`);
-        return response.data;
+        return response.data.data;
     } catch (error) {
         console.error(`Error fetching course ${courseId} details:`, error);
         throw error;
@@ -54,7 +77,7 @@ export const createCourse = async (courseData: {
     // description?: string;
     academic_year: string;
     semester: string;
-    
+
 }) => {
     try {
         console.log(courseData)
@@ -72,11 +95,11 @@ export const updateCourse = async (courseId: string, courseData: {
     course_code?: string;
     description?: string;
     semester?: string;
-    year?: string;
+    academic_year?: string;
 }) => {
     try {
         const response = await axiosInstance.put(`/courses/${courseId}`, courseData);
-        return response.data;
+        return response.data.data;
     } catch (error) {
         console.error(`Error updating course ${courseId}:`, error);
         throw error;
