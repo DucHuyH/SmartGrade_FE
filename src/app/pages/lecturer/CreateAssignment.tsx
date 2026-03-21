@@ -1,389 +1,394 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
-import { Textarea } from '../../components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { ArrowLeft, Loader2, Save } from 'lucide-react';
-import { Course } from '../../../model';
-import { Assignment } from '../../../model/assignment';
-import { createAssignment } from '../../services/lecturer/assignmentService';
-import { getAllCourses } from '../../services/lecturer/courseService';
-import { toast } from 'react-toastify';
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
+import { Button } from '../../components/ui/button'
+import { Input } from '../../components/ui/input'
+import { Label } from '../../components/ui/label'
+import { Textarea } from '../../components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
+import { ArrowLeft, Loader2, Save } from 'lucide-react'
+import { Course } from '../../../model'
+import { Assignment } from '../../../model/assignment'
+import { createAssignment } from '../../services/lecturer/assignmentService'
+import { getAllCourses } from '../../services/lecturer/courseService'
+import { toast } from 'react-toastify'
 
-const FILE_TYPE_OPTIONS = ['pdf', 'docx', 'xlsx', 'txt'];
-const DEADLINE_OFFSET_MINUTES = 5;
+const FILE_TYPE_OPTIONS = ['pdf', 'docx', 'xlsx', 'txt']
+const DEADLINE_OFFSET_MINUTES = 5
 
 const toIsoDate = (value: string) => {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-        return value;
-    }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
 
-    return date.toISOString();
-};
+  return date.toISOString()
+}
 
 const toLocalDateTimeInput = (date: Date) => {
-    const timezoneOffsetInMs = date.getTimezoneOffset() * 60 * 1000;
-    return new Date(date.getTime() - timezoneOffsetInMs).toISOString().slice(0, 16);
-};
+  const timezoneOffsetInMs = date.getTimezoneOffset() * 60 * 1000
+  return new Date(date.getTime() - timezoneOffsetInMs).toISOString().slice(0, 16)
+}
 
 const getMinimumDeadlineInput = () => {
-    const minDeadline = new Date(Date.now() + DEADLINE_OFFSET_MINUTES * 60 * 1000);
-    return toLocalDateTimeInput(minDeadline);
-};
+  const minDeadline = new Date(Date.now() + DEADLINE_OFFSET_MINUTES * 60 * 1000)
+  return toLocalDateTimeInput(minDeadline)
+}
 
 export function CreateAssignment() {
-    const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
-    const courseFromQuery = searchParams.get('course') ?? '';
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const courseFromQuery = searchParams.get('course') ?? ''
 
-    const [courses, setCourses] = useState<Course[]>([]);
-    const [isLoadingCourses, setIsLoadingCourses] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+  const [courses, setCourses] = useState<Course[]>([])
+  const [isLoadingCourses, setIsLoadingCourses] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-    const [courseId, setCourseId] = useState(courseFromQuery);
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
-    const [questions, setQuestions] = useState('');
-    const [requirements, setRequirements] = useState('');
-    const [deadline, setDeadline] = useState(getMinimumDeadlineInput());
-    const [totalPoints, setTotalPoints] = useState('100');
-    const [maxFileSizeMb, setMaxFileSizeMb] = useState('10');
-    const [allowLateSubmissions, setAllowLateSubmissions] = useState(true);
-    const [enableAiGrading, setEnableAiGrading] = useState(true);
-    const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>(FILE_TYPE_OPTIONS);
-    const [deadlineTick, setDeadlineTick] = useState(Date.now());
+  const [courseId, setCourseId] = useState(courseFromQuery)
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [questions, setQuestions] = useState('')
+  const [requirements, setRequirements] = useState('')
+  const [deadline, setDeadline] = useState(getMinimumDeadlineInput())
+  const [totalPoints, setTotalPoints] = useState('100')
+  const [maxFileSizeMb, setMaxFileSizeMb] = useState('10')
+  const [allowLateSubmissions, setAllowLateSubmissions] = useState(true)
+  const [enableAiGrading, setEnableAiGrading] = useState(true)
+  const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>(FILE_TYPE_OPTIONS)
+  const [deadlineTick, setDeadlineTick] = useState(Date.now())
 
-    useEffect(() => {
-        const timerId = window.setInterval(() => {
-            setDeadlineTick(Date.now());
-        }, 30 * 1000);
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      setDeadlineTick(Date.now())
+    }, 30 * 1000)
 
-        return () => window.clearInterval(timerId);
-    }, []);
+    return () => window.clearInterval(timerId)
+  }, [])
 
-    useEffect(() => {
-        if (courseFromQuery) {
-            setCourseId(courseFromQuery);
+  useEffect(() => {
+    if (courseFromQuery) {
+      setCourseId(courseFromQuery)
+    }
+  }, [courseFromQuery])
+
+  useEffect(() => {
+    const fetchCourses = async () => {
+      setIsLoadingCourses(true)
+      try {
+        const response = await getAllCourses({ page: 1, limit: 100, search: '' })
+        const root = response?.data ?? {}
+        const coursesData = root?.course
+
+        if (Array.isArray(coursesData)) {
+          setCourses(coursesData)
+
+          if (!courseFromQuery && coursesData.length > 0) {
+            setCourseId(coursesData[0].course_id)
+          }
+        } else {
+          setCourses([])
         }
-    }, [courseFromQuery]);
+      } catch (error) {
+        console.error('Error fetching courses:', error)
+        setCourses([])
+        toast.error('Failed to load courses.')
+      } finally {
+        setIsLoadingCourses(false)
+      }
+    }
 
-    useEffect(() => {
-        const fetchCourses = async () => {
-            setIsLoadingCourses(true);
-            try {
-                const response = await getAllCourses({ page: 1, limit: 100, search: '' });
-                const root = response?.data ?? {};
-                const coursesData = root?.course;
+    fetchCourses()
+  }, [courseFromQuery])
 
-                if (Array.isArray(coursesData)) {
-                    setCourses(coursesData);
+  const totalSelectedFileTypes = useMemo(() => selectedFileTypes.join(', '), [selectedFileTypes])
+  const minimumDeadlineInput = useMemo(() => getMinimumDeadlineInput(), [deadlineTick])
+  const deadlineMinForPicker = useMemo(() => {
+    const selectedDate = deadline.slice(0, 10)
+    const minDate = minimumDeadlineInput.slice(0, 10)
 
-                    if (!courseFromQuery && coursesData.length > 0) {
-                        setCourseId(coursesData[0].course_id);
-                    }
-                } else {
-                    setCourses([]);
-                }
-            } catch (error) {
-                console.error('Error fetching courses:', error);
-                setCourses([]);
-                toast.error('Failed to load courses.');
-            } finally {
-                setIsLoadingCourses(false);
-            }
-        };
+    if (selectedDate && selectedDate > minDate) {
+      return `${selectedDate}T00:00`
+    }
 
-        fetchCourses();
-    }, [courseFromQuery]);
+    return minimumDeadlineInput
+  }, [deadline, minimumDeadlineInput])
 
-    const totalSelectedFileTypes = useMemo(() => selectedFileTypes.join(', '), [selectedFileTypes]);
-    const minimumDeadlineInput = useMemo(() => getMinimumDeadlineInput(), [deadlineTick]);
-    const deadlineMinForPicker = useMemo(() => {
-        const selectedDate = deadline.slice(0, 10);
-        const minDate = minimumDeadlineInput.slice(0, 10);
+  const toggleFileType = (fileType: string) => {
+    setSelectedFileTypes((prev) =>
+      prev.includes(fileType) ? prev.filter((item) => item !== fileType) : [...prev, fileType]
+    )
+  }
 
-        if (selectedDate && selectedDate > minDate) {
-            return `${selectedDate}T00:00`;
-        }
+  const handleSave = async () => {
+    if (!courseId) {
+      toast.error('Please select a course.')
+      return
+    }
 
-        return minimumDeadlineInput;
-    }, [deadline, minimumDeadlineInput]);
+    if (!title.trim()) {
+      toast.error('Assignment title is required.')
+      return
+    }
 
-    const toggleFileType = (fileType: string) => {
-        setSelectedFileTypes((prev) =>
-            prev.includes(fileType)
-                ? prev.filter((item) => item !== fileType)
-                : [...prev, fileType]
-        );
-    };
+    if (!deadline) {
+      toast.error('Deadline is required.')
+      return
+    }
 
-    const handleSave = async () => {
-        if (!courseId) {
-            toast.error('Please select a course.');
-            return;
-        }
+    const parsedDeadline = new Date(deadline)
+    if (Number.isNaN(parsedDeadline.getTime())) {
+      toast.error('Deadline is invalid.')
+      return
+    }
 
-        if (!title.trim()) {
-            toast.error('Assignment title is required.');
-            return;
-        }
+    const minAllowedDeadline = new Date(Date.now() + DEADLINE_OFFSET_MINUTES * 60 * 1000)
+    if (parsedDeadline.getTime() < minAllowedDeadline.getTime()) {
+      toast.error(`Deadline must be at least ${DEADLINE_OFFSET_MINUTES} minutes from now.`)
+      return
+    }
 
-        if (!deadline) {
-            toast.error('Deadline is required.');
-            return;
-        }
+    const parsedMaxScore = Number(totalPoints)
+    if (!Number.isFinite(parsedMaxScore) || parsedMaxScore <= 0) {
+      toast.error('Total points must be greater than 0.')
+      return
+    }
 
-        const parsedDeadline = new Date(deadline);
-        if (Number.isNaN(parsedDeadline.getTime())) {
-            toast.error('Deadline is invalid.');
-            return;
-        }
+    const parsedMaxFileSize = Number(maxFileSizeMb)
+    if (!Number.isFinite(parsedMaxFileSize) || parsedMaxFileSize <= 0) {
+      toast.error('Max file size must be greater than 0.')
+      return
+    }
 
-        const minAllowedDeadline = new Date(Date.now() + DEADLINE_OFFSET_MINUTES * 60 * 1000);
-        if (parsedDeadline.getTime() < minAllowedDeadline.getTime()) {
-            toast.error(`Deadline must be at least ${DEADLINE_OFFSET_MINUTES} minutes from now.`);
-            return;
-        }
+    if (selectedFileTypes.length === 0) {
+      toast.error('Please choose at least one allowed file type.')
+      return
+    }
 
-        const parsedMaxScore = Number(totalPoints);
-        if (!Number.isFinite(parsedMaxScore) || parsedMaxScore <= 0) {
-            toast.error('Total points must be greater than 0.');
-            return;
-        }
+    setIsSubmitting(true)
+    try {
+      await createAssignment({
+        course_id: courseId,
+        title: title.trim(),
+        description: description.trim(),
+        questions: questions.trim(),
+        requirements: requirements.trim(),
+        due_date: toIsoDate(deadline),
+        max_score: parsedMaxScore,
+        allowed_file_types: selectedFileTypes,
+        max_file_size_mb: parsedMaxFileSize,
+        allow_late_submissions: allowLateSubmissions,
+        enable_ai_grading: enableAiGrading
+      })
+      toast.success('Assignment created successfully!')
+      navigate(`/lecturer/courses/${courseId}/assignments`)
+    } catch (error) {
+      console.error('Error creating assignment:', error)
+      toast.error('Failed to create assignment. Please try again.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
-        const parsedMaxFileSize = Number(maxFileSizeMb);
-        if (!Number.isFinite(parsedMaxFileSize) || parsedMaxFileSize <= 0) {
-            toast.error('Max file size must be greater than 0.');
-            return;
-        }
-
-        if (selectedFileTypes.length === 0) {
-            toast.error('Please choose at least one allowed file type.');
-            return;
-        }
-
-        setIsSubmitting(true);
-        try {
-            await createAssignment({
-                course_id: courseId,
-                title: title.trim(),
-                description: description.trim(),
-                questions: questions.trim(),
-                requirements: requirements.trim(),
-                due_date: toIsoDate(deadline),
-                max_score: parsedMaxScore,
-                allowed_file_types: selectedFileTypes,
-                max_file_size_mb: parsedMaxFileSize,
-                allow_late_submissions: allowLateSubmissions,
-                enable_ai_grading: enableAiGrading,
-            });
-            toast.success('Assignment created successfully!');
-            navigate(`/lecturer/courses/${courseId}/assignments`);
-        } catch (error) {
-            console.error('Error creating assignment:', error);
-            toast.error('Failed to create assignment. Please try again.');
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    return (
-        <div className="space-y-6">
-            <div className='flex items-center justify-between'>
-                <div>
-                    <h2>Create New Assignment</h2>
-                    <p className="text-sm text-gray-600">Set up a new assignment with rubrics and deadlines</p>
-                </div>
-                <Button
-                    variant="outline"
-                    onClick={() => navigate(courseId ? `/lecturer/courses/${courseId}/assignments` : '/lecturer/courses')}
-                >
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back to Assignments
-                </Button>
-            </div>
-
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Assignment Details */}
-                <div className="lg:col-span-2 space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Assignment Details</CardTitle>
-                            <CardDescription>Basic information about the assignment</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="subject">Course</Label>
-                                <Select value={courseId} onValueChange={setCourseId} disabled={isLoadingCourses || courses.length === 0}>
-                                    <SelectTrigger id="subject">
-                                        <SelectValue placeholder={isLoadingCourses ? 'Loading courses...' : 'Select course'} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {courses.map((course) => (
-                                            <SelectItem key={course.course_id} value={course.course_id}>
-                                                {course.course_code} - {course.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                {!isLoadingCourses && courses.length === 0 && (
-                                    <p className="text-sm text-red-600">No courses available. Please create a course first.</p>
-                                )}
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="title">Assignment Title</Label>
-                                <Input
-                                    id="title"
-                                    placeholder="e.g., Binary Search Tree Implementation"
-                                    value={title}
-                                    onChange={(e) => setTitle(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="description">Description</Label>
-                                <Textarea
-                                    id="description"
-                                    placeholder="Provide detailed instructions for the assignment..."
-                                    rows={6}
-                                    value={description}
-                                    onChange={(e) => setDescription(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="questions">Questions</Label>
-                                <Textarea
-                                    id="questions"
-                                    placeholder="Enter assignment questions..."
-                                    rows={4}
-                                    value={questions}
-                                    onChange={(e) => setQuestions(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="requirements">Requirements</Label>
-                                <Textarea
-                                    id="requirements"
-                                    placeholder="Enter submission requirements..."
-                                    rows={4}
-                                    value={requirements}
-                                    onChange={(e) => setRequirements(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="deadline">Deadline</Label>
-                                    <Input
-                                        id="deadline"
-                                        type="datetime-local"
-                                        value={deadline}
-                                        min={deadlineMinForPicker}
-                                        step={60}
-                                        onChange={(e) => setDeadline(e.target.value)}
-                                    />
-                                    <p className="text-xs text-gray-500">
-                                        Choose a deadline from now + {DEADLINE_OFFSET_MINUTES} minutes onward. Past times are disabled.
-                                    </p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="points">Total Points</Label>
-                                    <Input
-                                        id="points"
-                                        type="number"
-                                        min={1}
-                                        value={totalPoints}
-                                        onChange={(e) => setTotalPoints(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Submission Settings */}
-                <div className="space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Submission Settings</CardTitle>
-                            <CardDescription>Configure submission options</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="space-y-2">
-                                <Label>Allowed File Types</Label>
-                                <div className="space-y-2">
-                                    {FILE_TYPE_OPTIONS.map((type) => (
-                                        <label key={type} className="flex items-center gap-2">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedFileTypes.includes(type)}
-                                                onChange={() => toggleFileType(type)}
-                                                className="rounded"
-                                            />
-                                            <span className="text-sm">.{type}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                                <p className="text-xs text-gray-500">Selected: {totalSelectedFileTypes || 'None'}</p>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="max-size">Max File Size (MB)</Label>
-                                <Input
-                                    id="max-size"
-                                    type="number"
-                                    min={1}
-                                    value={maxFileSizeMb}
-                                    onChange={(e) => setMaxFileSizeMb(e.target.value)}
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <label className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={allowLateSubmissions}
-                                        onChange={(e) => setAllowLateSubmissions(e.target.checked)}
-                                        className="rounded"
-                                    />
-                                    <span className="text-sm">Allow late submissions</span>
-                                </label>
-                                <label className="flex items-center gap-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={enableAiGrading}
-                                        onChange={(e) => setEnableAiGrading(e.target.checked)}
-                                        className="rounded"
-                                    />
-                                    <span className="text-sm">Enable AI grading</span>
-                                </label>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Button onClick={handleSave} className="w-full" disabled={isSubmitting || isLoadingCourses || courses.length === 0}>
-                        {isSubmitting ? (
-                            <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Creating...
-                            </>
-                        ) : (
-                            <>
-                                <Save className="h-4 w-4 mr-2" />
-                                Create Assignment
-                            </>
-                        )}
-                    </Button>
-                </div>
-            </div>
+  return (
+    <div className='space-y-6'>
+      <div className='flex items-center justify-between'>
+        <div>
+          <h2>Create New Assignment</h2>
+          <p className='text-sm text-gray-600'>Set up a new assignment with rubrics and deadlines</p>
         </div>
-    );
+        <Button
+          variant='outline'
+          onClick={() => navigate(courseId ? `/lecturer/courses/${courseId}/assignments` : '/lecturer/courses')}
+        >
+          <ArrowLeft className='h-4 w-4 mr-2' />
+          Back to Assignments
+        </Button>
+      </div>
+
+      <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
+        {/* Assignment Details */}
+        <div className='lg:col-span-2 space-y-6'>
+          <Card>
+            <CardHeader>
+              <CardTitle>Assignment Details</CardTitle>
+              <CardDescription>Basic information about the assignment</CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              <div className='space-y-2'>
+                <Label htmlFor='subject'>Course</Label>
+                <Select
+                  value={courseId}
+                  onValueChange={setCourseId}
+                  disabled={isLoadingCourses || courses.length === 0}
+                >
+                  <SelectTrigger id='subject'>
+                    <SelectValue placeholder={isLoadingCourses ? 'Loading courses...' : 'Select course'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {courses.map((course) => (
+                      <SelectItem key={course.course_id} value={course.course_id}>
+                        {course.course_code} - {course.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!isLoadingCourses && courses.length === 0 && (
+                  <p className='text-sm text-red-600'>No courses available. Please create a course first.</p>
+                )}
+              </div>
+
+              <div className='space-y-2'>
+                <Label htmlFor='title'>Assignment Title</Label>
+                <Input
+                  id='title'
+                  placeholder='e.g., Binary Search Tree Implementation'
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </div>
+
+              <div className='space-y-2'>
+                <Label htmlFor='description'>Description</Label>
+                <Textarea
+                  id='description'
+                  placeholder='Provide detailed instructions for the assignment...'
+                  rows={6}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+
+              <div className='space-y-2'>
+                <Label htmlFor='questions'>Questions</Label>
+                <Textarea
+                  id='questions'
+                  placeholder='Enter assignment questions...'
+                  rows={4}
+                  value={questions}
+                  onChange={(e) => setQuestions(e.target.value)}
+                />
+              </div>
+
+              <div className='space-y-2'>
+                <Label htmlFor='requirements'>Requirements</Label>
+                <Textarea
+                  id='requirements'
+                  placeholder='Enter submission requirements...'
+                  rows={4}
+                  value={requirements}
+                  onChange={(e) => setRequirements(e.target.value)}
+                />
+              </div>
+
+              <div className='grid grid-cols-2 gap-4'>
+                <div className='space-y-2'>
+                  <Label htmlFor='deadline'>Deadline</Label>
+                  <Input
+                    id='deadline'
+                    type='datetime-local'
+                    value={deadline}
+                    min={deadlineMinForPicker}
+                    step={60}
+                    onChange={(e) => setDeadline(e.target.value)}
+                  />
+                  <p className='text-xs text-gray-500'>
+                    Choose a deadline from now + {DEADLINE_OFFSET_MINUTES} minutes onward. Past times are disabled.
+                  </p>
+                </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='points'>Total Points</Label>
+                  <Input
+                    id='points'
+                    type='number'
+                    min={1}
+                    value={totalPoints}
+                    onChange={(e) => setTotalPoints(e.target.value)}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Submission Settings */}
+        <div className='space-y-6'>
+          <Card>
+            <CardHeader>
+              <CardTitle>Submission Settings</CardTitle>
+              <CardDescription>Configure submission options</CardDescription>
+            </CardHeader>
+            <CardContent className='space-y-4'>
+              <div className='space-y-2'>
+                <Label>Allowed File Types</Label>
+                <div className='space-y-2'>
+                  {FILE_TYPE_OPTIONS.map((type) => (
+                    <label key={type} className='flex items-center gap-2'>
+                      <input
+                        type='checkbox'
+                        checked={selectedFileTypes.includes(type)}
+                        onChange={() => toggleFileType(type)}
+                        className='rounded'
+                      />
+                      <span className='text-sm'>.{type}</span>
+                    </label>
+                  ))}
+                </div>
+                <p className='text-xs text-gray-500'>Selected: {totalSelectedFileTypes || 'None'}</p>
+              </div>
+
+              <div className='space-y-2'>
+                <Label htmlFor='max-size'>Max File Size (MB)</Label>
+                <Input
+                  id='max-size'
+                  type='number'
+                  min={1}
+                  value={maxFileSizeMb}
+                  onChange={(e) => setMaxFileSizeMb(e.target.value)}
+                />
+              </div>
+
+              <div className='space-y-2'>
+                <label className='flex items-center gap-2'>
+                  <input
+                    type='checkbox'
+                    checked={allowLateSubmissions}
+                    onChange={(e) => setAllowLateSubmissions(e.target.checked)}
+                    className='rounded'
+                  />
+                  <span className='text-sm'>Allow late submissions</span>
+                </label>
+                <label className='flex items-center gap-2'>
+                  <input
+                    type='checkbox'
+                    checked={enableAiGrading}
+                    onChange={(e) => setEnableAiGrading(e.target.checked)}
+                    className='rounded'
+                  />
+                  <span className='text-sm'>Enable AI grading</span>
+                </label>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Button
+            onClick={handleSave}
+            className='w-full'
+            disabled={isSubmitting || isLoadingCourses || courses.length === 0}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                Creating...
+              </>
+            ) : (
+              <>
+                <Save className='h-4 w-4 mr-2' />
+                Create Assignment
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
 }
