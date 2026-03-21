@@ -49,12 +49,17 @@ export const getAssignmentDetails = async (assignmentId: string) => {
 };
 
 export const createAssignment = async (
-    assignmentData: Omit<Assignment, "assignment_id">
+    assignmentData: Omit<Assignment, "assignment_id"> | FormData
 ) => {
     try {
+        const config = assignmentData instanceof FormData ? {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        } : {};
+
         const response = await axiosInstance.post(
             `/assignments`,
-            assignmentData
+            assignmentData,
+            config
         );
         if (!response.data || !response.data.data) {
             throw new Error("Invalid response format: missing 'data' field");
@@ -69,12 +74,17 @@ export const createAssignment = async (
 
 export const updateAssignment = async (
     assignmentId: string,
-    assignmentData: Partial<Assignment>,
+    assignmentData: Partial<Assignment> | FormData,
 ) => {
     try {
+        const config = assignmentData instanceof FormData ? {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        } : {};
+
         const response = await axiosInstance.put(
             `/assignments/${assignmentId}/`,
             assignmentData,
+            config
         );
         if (!response.data || !response.data.data) {
             throw new Error("Invalid response format: missing 'data' field");

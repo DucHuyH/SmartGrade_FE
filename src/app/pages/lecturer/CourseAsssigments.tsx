@@ -394,6 +394,25 @@ export function CourseAssignments() {
                                     </div>
                                 </CardHeader>
                                 <CardContent>
+                                    {/* Progress Stats */}
+                                    <div className="grid grid-cols-3 gap-4 mb-4">
+                                        <div className="text-center p-3 bg-blue-50 rounded">
+                                            <div className="text-2xl text-blue-600">{assignment?.submitted_count || 0}</div>
+                                            <div className="text-xs text-gray-600">Submitted</div>
+                                        </div>
+                                        <div className="text-center p-3 bg-green-50 rounded">
+                                            <div className="text-2xl text-green-600">{assignment?.graded_count || 0}</div>
+                                            <div className="text-xs text-gray-600">Graded</div>
+                                        </div>
+                                        <div className="text-center p-3 bg-orange-50 rounded">
+                                            <div className="text-2xl text-orange-600">
+                                                {assignment?.submitted_count !== undefined && assignment?.graded_count !== undefined
+                                                    ? assignment.submitted_count - assignment.graded_count
+                                                    : 0}
+                                            </div>
+                                            <div className="text-xs text-gray-600">Pending</div>
+                                        </div>
+                                    </div>
                                     <p className="text-sm text-gray-600 mb-4 line-clamp-2">
                                         {assignment.description || 'No description provided.'}
                                     </p>

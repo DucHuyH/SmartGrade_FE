@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -56,6 +56,8 @@ export function CreateAssignment() {
     const [enableAiGrading, setEnableAiGrading] = useState(true);
     const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>(FILE_TYPE_OPTIONS);
     const [deadlineTick, setDeadlineTick] = useState(Date.now());
+    const [assignmentFile, setAssignmentFile] = useState<File | null>(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     useEffect(() => {
         const timerId = window.setInterval(() => {
@@ -121,6 +123,24 @@ export function CreateAssignment() {
         );
     };
 
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setAssignmentFile(file);
+        }
+    };
+
+    const openFilePicker = () => {
+        fileInputRef.current?.click();
+    };
+
+    const clearSelectedFile = () => {
+        setAssignmentFile(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
     const handleSave = async () => {
         if (!courseId) {
             toast.error('Please select a course.');
@@ -168,19 +188,40 @@ export function CreateAssignment() {
 
         setIsSubmitting(true);
         try {
-            await createAssignment({
-                course_id: courseId,
-                title: title.trim(),
-                description: description.trim(),
-                questions: questions.trim(),
-                requirements: requirements.trim(),
-                due_date: toIsoDate(deadline),
-                max_score: parsedMaxScore,
-                allowed_file_types: selectedFileTypes,
-                max_file_size_mb: parsedMaxFileSize,
-                allow_late_submissions: allowLateSubmissions,
-                enable_ai_grading: enableAiGrading,
-            });
+            let submitData: any;
+
+            if (assignmentFile) {
+                const formData = new FormData();
+                formData.append('file', assignmentFile);
+                formData.append('course_id', courseId);
+                formData.append('title', title.trim());
+                formData.append('description', description.trim());
+                formData.append('questions', questions.trim());
+                formData.append('requirements', requirements.trim());
+                formData.append('due_date', toIsoDate(deadline));
+                formData.append('max_score', String(parsedMaxScore));
+                formData.append('allowed_file_types', JSON.stringify(selectedFileTypes));
+                formData.append('max_file_size_mb', String(parsedMaxFileSize));
+                formData.append('allow_late_submissions', String(allowLateSubmissions));
+                formData.append('enable_ai_grading', String(enableAiGrading));
+                submitData = formData;
+            } else {
+                submitData = {
+                    course_id: courseId,
+                    title: title.trim(),
+                    description: description.trim(),
+                    questions: questions.trim(),
+                    requirements: requirements.trim(),
+                    due_date: toIsoDate(deadline),
+                    max_score: parsedMaxScore,
+                    allowed_file_types: selectedFileTypes,
+                    max_file_size_mb: parsedMaxFileSize,
+                    allow_late_submissions: allowLateSubmissions,
+                    enable_ai_grading: enableAiGrading,
+                };
+            }
+
+            await createAssignment(submitData);
             toast.success('Assignment created successfully!');
             navigate(`/lecturer/courses/${courseId}/assignments`);
         } catch (error) {
@@ -304,6 +345,42 @@ export function CreateAssignment() {
                                         onChange={(e) => setTotalPoints(e.target.value)}
                                     />
                                 </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="assignment-file">Assignment File (Questions/Description)</Label>
+                                <input
+                                    id="assignment-file"
+                                    ref={fileInputRef}
+                                    type="file"
+                                    onChange={handleFileChange}
+                                    className="hidden"
+                                />
+                                <div className="rounded-md border p-3 space-y-3">
+                                    {assignmentFile ? (
+                                        <>
+                                            <div className="rounded bg-blue-50 px-3 py-2 text-sm text-blue-800 truncate">
+                                                Selected: {assignmentFile.name}
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                <Button type="button" variant="outline" size="sm" onClick={openFilePicker}>
+                                                    Change File
+                                                </Button>
+                                                <Button type="button" variant="ghost" size="sm" onClick={clearSelectedFile}>
+                                                    Remove Selection
+                                                </Button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="flex items-center justify-between gap-3">
+                                            <p className="text-sm text-gray-500">No file selected.</p>
+                                            <Button type="button" variant="outline" size="sm" onClick={openFilePicker}>
+                                                Choose File
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                                <p className="text-xs text-gray-500">File will be uploaded when you save the assignment.</p>
                             </div>
                         </CardContent>
                     </Card>

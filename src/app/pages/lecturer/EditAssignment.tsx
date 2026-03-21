@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -6,7 +6,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { ArrowLeft, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Download } from 'lucide-react';
 import { Course } from '../../../model';
 import { Assignment } from '../../../model/assignment';
 import { getAssignmentDetails, updateAssignment } from '../../services/lecturer/assignmentService';
@@ -84,6 +84,16 @@ const normalizeAllowedFileTypes = (value: unknown): string[] => {
     return [];
 };
 
+const getFileNameFromUrl = (url: string): string => {
+    try {
+        const urlObj = new URL(url);
+        const pathname = urlObj.pathname;
+        return pathname.split('/').pop() || 'assignment-file';
+    } catch {
+        return 'assignment-file';
+    }
+};
+
 export function EditAssignment() {
     const navigate = useNavigate();
     const { assignment_id } = useParams();
@@ -109,6 +119,10 @@ export function EditAssignment() {
     const [enableAiGrading, setEnableAiGrading] = useState(true);
     const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>(FILE_TYPE_OPTIONS);
     const [deadlineTick, setDeadlineTick] = useState(Date.now());
+    const [assignmentFile, setAssignmentFile] = useState<File | null>(null);
+    const [fileUrl, setFileUrl] = useState('');
+    const [isCurrentFileRemoved, setIsCurrentFileRemoved] = useState(false);
+    const replacementFileInputRef = useRef<HTMLInputElement | null>(null);
 
     useEffect(() => {
         const timerId = window.setInterval(() => {
@@ -147,6 +161,8 @@ export function EditAssignment() {
                 setAllowLateSubmissions(parsedAssignment.allow_late_submissions ?? true);
                 setEnableAiGrading(parsedAssignment.enable_ai_grading ?? true);
                 setSelectedFileTypes(normalizeAllowedFileTypes((parsedAssignment as Partial<Assignment>).allowed_file_types));
+                setFileUrl(parsedAssignment.file_url ?? '');
+                setIsCurrentFileRemoved(false);
             } catch (error) {
                 console.error('Error fetching assignment details for edit:', error);
                 toast.error('Failed to load assignment details.');
@@ -208,6 +224,41 @@ export function EditAssignment() {
         );
     };
 
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setAssignmentFile(file);
+        }
+    };
+
+    const openReplacementFilePicker = () => {
+        replacementFileInputRef.current?.click();
+    };
+
+    const clearReplacementFile = () => {
+        setAssignmentFile(null);
+        if (replacementFileInputRef.current) {
+            replacementFileInputRef.current.value = '';
+        }
+    };
+
+    const handleRemoveCurrentFile = () => {
+        setFileUrl('');
+        setAssignmentFile(null);
+        setIsCurrentFileRemoved(true);
+    };
+
+    const handleDownloadFile = () => {
+        if (fileUrl) {
+            const link = document.createElement('a');
+            link.href = fileUrl;
+            link.download = 'assignment-file';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    };
+
     const handleSave = async () => {
         if (!assignment_id) {
             toast.error('Assignment ID is missing.');
@@ -260,19 +311,47 @@ export function EditAssignment() {
 
         setIsSubmitting(true);
         try {
-            await updateAssignment(assignment_id, {
-                course_id: courseId,
-                title: title.trim(),
-                description: description.trim(),
-                questions: questions.trim(),
-                requirements: requirements.trim(),
-                due_date: toIsoDate(deadline),
-                max_score: parsedMaxScore,
-                allowed_file_types: selectedFileTypes,
-                max_file_size_mb: parsedMaxFileSize,
-                allow_late_submissions: allowLateSubmissions,
-                enable_ai_grading: enableAiGrading,
-            });
+            let submitData: any;
+
+            if (assignmentFile) {
+                const formData = new FormData();
+                formData.append('file', assignmentFile);
+                formData.append('course_id', courseId);
+                formData.append('title', title.trim());
+                formData.append('description', description.trim());
+                formData.append('questions', questions.trim());
+                formData.append('requirements', requirements.trim());
+                formData.append('due_date', toIsoDate(deadline));
+                formData.append('max_score', String(parsedMaxScore));
+                formData.append('allowed_file_types', JSON.stringify(selectedFileTypes));
+                formData.append('max_file_size_mb', String(parsedMaxFileSize));
+                formData.append('allow_late_submissions', String(allowLateSubmissions));
+                formData.append('enable_ai_grading', String(enableAiGrading));
+                submitData = formData;
+            } else {
+                submitData = {
+                    course_id: courseId,
+                    title: title.trim(),
+                    description: description.trim(),
+                    questions: questions.trim(),
+                    requirements: requirements.trim(),
+                    due_date: toIsoDate(deadline),
+                    max_score: parsedMaxScore,
+                    allowed_file_types: selectedFileTypes,
+                    max_file_size_mb: parsedMaxFileSize,
+                    allow_late_submissions: allowLateSubmissions,
+                    enable_ai_grading: enableAiGrading,
+                };
+
+                if (isCurrentFileRemoved) {
+                    submitData.file_url = null;
+                    submitData.file_public_id = null;
+                } else if (fileUrl) {
+                    submitData.file_url = fileUrl;
+                }
+            }
+
+            await updateAssignment(assignment_id, submitData);
 
             toast.success('Assignment updated successfully!');
             navigate(`/lecturer/courses/${courseId}/assignments`);
@@ -350,6 +429,57 @@ export function EditAssignment() {
                                 <div className="space-y-2">
                                     <Label htmlFor="requirements">Requirements</Label>
                                     <Textarea id="requirements" rows={4} value={requirements} onChange={(e) => setRequirements(e.target.value)} />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>Assignment File</Label>
+                                    <div className="rounded-md border p-3 space-y-3">
+                                        {fileUrl ? (
+                                            <>
+                                                <div className="rounded bg-green-50 px-3 py-2 text-sm text-green-900 truncate">
+                                                    Current file: {getFileNameFromUrl(fileUrl)}
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    <Button type="button" onClick={handleDownloadFile} variant="outline" size="sm">
+                                                        <Download className="h-4 w-4 mr-1" />
+                                                        Download
+                                                    </Button>
+                                                    <Button type="button" onClick={handleRemoveCurrentFile} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                                                        Remove Current File
+                                                    </Button>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <p className="text-sm text-gray-500">No current file.</p>
+                                        )}
+                                    </div>
+
+                                    <div className="rounded-md border p-3 space-y-3">
+                                        <Label htmlFor="assignment-file">Replace With New File</Label>
+                                        <input
+                                            id="assignment-file"
+                                            ref={replacementFileInputRef}
+                                            type="file"
+                                            onChange={handleFileChange}
+                                            className="hidden"
+                                        />
+                                        {assignmentFile && (
+                                            <div className="rounded bg-blue-50 px-3 py-2 text-sm text-blue-800 truncate">
+                                                Selected: {assignmentFile.name}
+                                            </div>
+                                        )}
+                                        <div className="flex flex-wrap gap-2">
+                                            <Button type="button" variant="outline" size="sm" onClick={openReplacementFilePicker}>
+                                                {assignmentFile ? 'Change File' : 'Choose File'}
+                                            </Button>
+                                            {assignmentFile && (
+                                                <Button type="button" variant="ghost" size="sm" onClick={clearReplacementFile}>
+                                                    Remove Selection
+                                                </Button>
+                                            )}
+                                        </div>
+                                        <p className="text-xs text-gray-500">File will be uploaded when you save the assignment.</p>
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">

@@ -14,4 +14,8 @@ export interface Assignment {
     file_url?: string;
     file_public_id?: string;
     created_at?: string;
+    updated_at?: string;
+    submitted_count?: number;
+    graded_count?: number;
+    
 }
