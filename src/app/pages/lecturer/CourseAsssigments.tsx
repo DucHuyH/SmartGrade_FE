@@ -7,7 +7,7 @@ import { Breadcrumb } from '../../components/Breadcrumb';
 import { SearchBar } from '../../components/SearchBar';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Pagination } from '../../components/ui/pagination';
-import { BookOpen, Calendar, FileText, Loader2, MoreVertical, Plus, Trash2, Users } from 'lucide-react';
+import { BookOpen, Calendar, FileText, Loader2, MessageSquare, MoreVertical, Plus, Trash2, Users } from 'lucide-react';
 import { Course } from '../../../model';
 import { Assignment } from '../../../model/assignment';
 import { deleteAssignment, getAssignmentDetails, getAssignmentsForCourse } from '../../services/lecturer/assignmentService';
@@ -352,7 +352,7 @@ export function CourseAssignments() {
                                                 </span>
                                             </CardDescription>
                                         </div>
-                                        <div className="flex items-start gap-2">
+                                        <div className="flex items-center gap-2 ">
                                             {getStatusBadge(status)}
                                             <div
                                                 className="relative"
@@ -417,14 +417,21 @@ export function CourseAssignments() {
                                         {assignment.description || 'No description provided.'}
                                     </p>
                                     <div className="flex gap-2">
-                                        <Button
-                                            variant="outline"
+                                        <Link
+                                            to={`/lecturer/subjects/${course_id}/assignments/${assignment.assignment_id}/submissions`}
                                             className="flex-1"
-                                            onClick={() => openDetailDialog(assignment.assignment_id)}
                                         >
-                                            <FileText className="h-4 w-4 mr-2" />
-                                            View Details
-                                        </Button>
+                                            <Button variant="outline" className="w-full">
+                                                <FileText className="h-4 w-4 mr-2" />
+                                                View Submissions
+                                            </Button>
+                                        </Link>
+                                        <Link to={`/lecturer/assignments/${assignment.assignment_id}/questions`}>
+                                            <Button className='w-full'>
+                                                <MessageSquare className="h-4 w-4 mr-2" />
+                                                Questions
+                                            </Button>
+                                        </Link>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -440,12 +447,7 @@ export function CourseAssignments() {
                                     ? `No assignments found matching "${debouncedSearchQuery}"`
                                     : 'No assignments created yet'}
                             </p>
-                            <Link to={`/lecturer/assignments/create?course=${course_id}`}>
-                                <Button>
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Create First Assignment
-                                </Button>
-                            </Link>
+                            
                         </CardContent>
                     </Card>
                 )}

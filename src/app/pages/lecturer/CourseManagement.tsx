@@ -514,7 +514,7 @@ export function CourseManagement() {
                     <CardTitle>{course.name}</CardTitle>
                     <CardDescription>{course.course_code}</CardDescription>
                   </div>
-                  <div className="flex items-start gap-2">
+                  <div className="flex items-center gap-2">
                     <span className="text-xs bg-gray-100 px-2 py-1 rounded">{course.semester} {course.academic_year}</span>
                     <div className="relative" ref={activeMenuCourseId === course.course_id ? actionMenuRef : null}>
                       <Button

@@ -6,7 +6,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { ArrowLeft, Loader2, Save } from 'lucide-react';
+import { ArrowLeft, ArrowUpFromLine, FileText, Loader2, Save, X, Upload } from 'lucide-react';
 import { Course } from '../../../model';
 import { Assignment } from '../../../model/assignment';
 import { createAssignment } from '../../services/lecturer/assignmentService';
@@ -35,29 +35,35 @@ const getMinimumDeadlineInput = () => {
   return toLocalDateTimeInput(minDeadline)
 }
 
+const formatFileSizeMb = (bytes: number) => {
+  const sizeInMb = bytes / (1024 * 1024)
+  return `${sizeInMb.toFixed(2)} MB`
+}
+
 export function CreateAssignment() {
-    const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
-    const courseFromQuery = searchParams.get('course') ?? '';
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const courseFromQuery = searchParams.get('course') ?? '';
 
-    const [courses, setCourses] = useState<Course[]>([]);
-    const [isLoadingCourses, setIsLoadingCourses] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isLoadingCourses, setIsLoadingCourses] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const [courseId, setCourseId] = useState(courseFromQuery);
-    const [title, setTitle] = useState('');
-    const [description, setDescription] = useState('');
-    const [questions, setQuestions] = useState('');
-    const [requirements, setRequirements] = useState('');
-    const [deadline, setDeadline] = useState(getMinimumDeadlineInput());
-    const [totalPoints, setTotalPoints] = useState('100');
-    const [maxFileSizeMb, setMaxFileSizeMb] = useState('10');
-    const [allowLateSubmissions, setAllowLateSubmissions] = useState(true);
-    const [enableAiGrading, setEnableAiGrading] = useState(true);
-    const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>(FILE_TYPE_OPTIONS);
-    const [deadlineTick, setDeadlineTick] = useState(Date.now());
-    const [assignmentFile, setAssignmentFile] = useState<File | null>(null);
-    const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [courseId, setCourseId] = useState(courseFromQuery);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [questions, setQuestions] = useState('');
+  const [requirements, setRequirements] = useState('');
+  const [deadline, setDeadline] = useState(getMinimumDeadlineInput());
+  const [totalPoints, setTotalPoints] = useState('100');
+  const [maxFileSizeMb, setMaxFileSizeMb] = useState('10');
+  const [allowLateSubmissions, setAllowLateSubmissions] = useState(true);
+  const [enableAiGrading, setEnableAiGrading] = useState(true);
+  const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>(FILE_TYPE_OPTIONS);
+  const [deadlineTick, setDeadlineTick] = useState(Date.now());
+  const [assignmentFile, setAssignmentFile] = useState<File | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const timerId = window.setInterval(() => {
@@ -115,31 +121,51 @@ export function CreateAssignment() {
     return minimumDeadlineInput
   }, [deadline, minimumDeadlineInput])
 
-    const toggleFileType = (fileType: string) => {
-        setSelectedFileTypes((prev) =>
-            prev.includes(fileType)
-                ? prev.filter((item) => item !== fileType)
-                : [...prev, fileType]
-        );
-    };
+  const toggleFileType = (fileType: string) => {
+    setSelectedFileTypes((prev) =>
+      prev.includes(fileType)
+        ? prev.filter((item) => item !== fileType)
+        : [...prev, fileType]
+    );
+  };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setAssignmentFile(file);
-        }
-    };
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAssignmentFile(file);
+    }
+  };
 
-    const openFilePicker = () => {
-        fileInputRef.current?.click();
-    };
+  const openFilePicker = () => {
+    fileInputRef.current?.click();
+  };
 
-    const clearSelectedFile = () => {
-        setAssignmentFile(null);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-        }
-    };
+  const clearSelectedFile = () => {
+    setAssignmentFile(null);
+    setIsDraggingFile(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    setIsDraggingFile(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      setAssignmentFile(file);
+    }
+  };
 
   const handleSave = async () => {
     if (!courseId) {
@@ -186,51 +212,51 @@ export function CreateAssignment() {
       return
     }
 
-        setIsSubmitting(true);
-        try {
-            let submitData: any;
+    setIsSubmitting(true);
+    try {
+      let submitData: any;
 
-            if (assignmentFile) {
-                const formData = new FormData();
-                formData.append('file', assignmentFile);
-                formData.append('course_id', courseId);
-                formData.append('title', title.trim());
-                formData.append('description', description.trim());
-                formData.append('questions', questions.trim());
-                formData.append('requirements', requirements.trim());
-                formData.append('due_date', toIsoDate(deadline));
-                formData.append('max_score', String(parsedMaxScore));
-                formData.append('allowed_file_types', JSON.stringify(selectedFileTypes));
-                formData.append('max_file_size_mb', String(parsedMaxFileSize));
-                formData.append('allow_late_submissions', String(allowLateSubmissions));
-                formData.append('enable_ai_grading', String(enableAiGrading));
-                submitData = formData;
-            } else {
-                submitData = {
-                    course_id: courseId,
-                    title: title.trim(),
-                    description: description.trim(),
-                    questions: questions.trim(),
-                    requirements: requirements.trim(),
-                    due_date: toIsoDate(deadline),
-                    max_score: parsedMaxScore,
-                    allowed_file_types: selectedFileTypes,
-                    max_file_size_mb: parsedMaxFileSize,
-                    allow_late_submissions: allowLateSubmissions,
-                    enable_ai_grading: enableAiGrading,
-                };
-            }
+      if (assignmentFile) {
+        const formData = new FormData();
+        formData.append('file', assignmentFile);
+        formData.append('course_id', courseId);
+        formData.append('title', title.trim());
+        formData.append('description', description.trim());
+        formData.append('questions', questions.trim());
+        formData.append('requirements', requirements.trim());
+        formData.append('due_date', toIsoDate(deadline));
+        formData.append('max_score', String(parsedMaxScore));
+        formData.append('allowed_file_types', JSON.stringify(selectedFileTypes));
+        formData.append('max_file_size_mb', String(parsedMaxFileSize));
+        formData.append('allow_late_submissions', String(allowLateSubmissions));
+        formData.append('enable_ai_grading', String(enableAiGrading));
+        submitData = formData;
+      } else {
+        submitData = {
+          course_id: courseId,
+          title: title.trim(),
+          description: description.trim(),
+          questions: questions.trim(),
+          requirements: requirements.trim(),
+          due_date: toIsoDate(deadline),
+          max_score: parsedMaxScore,
+          allowed_file_types: selectedFileTypes,
+          max_file_size_mb: parsedMaxFileSize,
+          allow_late_submissions: allowLateSubmissions,
+          enable_ai_grading: enableAiGrading,
+        };
+      }
 
-            await createAssignment(submitData);
-            toast.success('Assignment created successfully!');
-            navigate(`/lecturer/courses/${courseId}/assignments`);
-        } catch (error) {
-            console.error('Error creating assignment:', error);
-            toast.error('Failed to create assignment. Please try again.');
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
+      await createAssignment(submitData);
+      toast.success('Assignment created successfully!');
+      navigate(`/lecturer/courses/${courseId}/assignments`);
+    } catch (error) {
+      console.error('Error creating assignment:', error);
+      toast.error('Failed to create assignment. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className='space-y-6'>
@@ -323,71 +349,88 @@ export function CreateAssignment() {
                 />
               </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="deadline">Deadline</Label>
-                                    <Input
-                                        id="deadline"
-                                        type="datetime-local"
-                                        value={deadline}
-                                        min={deadlineMinForPicker}
-                                        step={60}
-                                        onChange={(e) => setDeadline(e.target.value)}
-                                    />
-                                    <p className="text-xs text-gray-500">
-                                        Choose a deadline from now + {DEADLINE_OFFSET_MINUTES} minutes onward. Past times are disabled.
-                                    </p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="points">Total Points</Label>
-                                    <Input
-                                        id="points"
-                                        type="number"
-                                        min={1}
-                                        value={totalPoints}
-                                        onChange={(e) => setTotalPoints(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="assignment-file">Assignment File (Questions/Description)</Label>
-                                <input
-                                    id="assignment-file"
-                                    ref={fileInputRef}
-                                    type="file"
-                                    onChange={handleFileChange}
-                                    className="hidden"
-                                />
-                                <div className="rounded-md border p-3 space-y-3">
-                                    {assignmentFile ? (
-                                        <>
-                                            <div className="rounded bg-blue-50 px-3 py-2 text-sm text-blue-800 truncate">
-                                                Selected: {assignmentFile.name}
-                                            </div>
-                                            <div className="flex flex-wrap gap-2">
-                                                <Button type="button" variant="outline" size="sm" onClick={openFilePicker}>
-                                                    Change File
-                                                </Button>
-                                                <Button type="button" variant="ghost" size="sm" onClick={clearSelectedFile}>
-                                                    Remove Selection
-                                                </Button>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="flex items-center justify-between gap-3">
-                                            <p className="text-sm text-gray-500">No file selected.</p>
-                                            <Button type="button" variant="outline" size="sm" onClick={openFilePicker}>
-                                                Choose File
-                                            </Button>
-                                        </div>
-                                    )}
-                                </div>
-                                <p className="text-xs text-gray-500">File will be uploaded when you save the assignment.</p>
-                            </div>
-                        </CardContent>
-                    </Card>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="deadline">Deadline</Label>
+                  <Input
+                    id="deadline"
+                    type="datetime-local"
+                    value={deadline}
+                    min={deadlineMinForPicker}
+                    step={60}
+                    onChange={(e) => setDeadline(e.target.value)}
+                  />
+                  <p className="text-xs text-gray-500">
+                    Choose a deadline from now + {DEADLINE_OFFSET_MINUTES} minutes onward. Past times are disabled.
+                  </p>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="points">Total Points</Label>
+                  <Input
+                    id="points"
+                    type="number"
+                    min={1}
+                    value={totalPoints}
+                    onChange={(e) => setTotalPoints(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="assignment-file">Assignment File (Questions/Description)</Label>
+                <input
+                  id="assignment-file"
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <div className="rounded-xl border border-gray-200 p-4 sm:p-6">
+                  {assignmentFile ? (
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-12 w-12 shrink-0 rounded-xl bg-red-100 text-red-600 flex items-center justify-center">
+                          <FileText className="h-6 w-6" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-base font-medium text-gray-900 truncate">{assignmentFile.name}</p>
+                          <p className="text-sm text-gray-500">{formatFileSizeMb(assignmentFile.size)}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={clearSelectedFile}
+                        className="h-9 w-9 rounded-md text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors flex items-center justify-center"
+                        aria-label="Remove selected file"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={openFilePicker}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      className={`w-full rounded-xl border-2 border-dashed px-4 py-14 text-center transition-colors ${isDraggingFile ? 'border-blue-400 bg-blue-50' : 'border-gray-300 bg-white hover:primary/5 hover:border-primary'}`}
+                    >
+                      <label htmlFor="assignment-file" className="cursor-pointer">
+                        <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                        <p className="text-sm text-gray-600 mb-1">
+                          Click to upload or drag and drop
+                        </p>
+                        <p className="text-xs text-gray-400">PDF, Word, Text, or Excel (Max {maxFileSizeMb || '10'}MB)</p>
+                      </label>
+
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500">File will be uploaded when you save the assignment.</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Submission Settings */}
         <div className='space-y-6'>

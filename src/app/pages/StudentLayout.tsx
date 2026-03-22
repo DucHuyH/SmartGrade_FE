@@ -62,7 +62,7 @@ export function StudentLayout() {
                 </Button>
               )}
             </NavLink>
-            <NavLink to="/student/classes">
+            <NavLink to="/student/courses">
               {({ isActive }) => (
                 <Button
                   variant="ghost"
@@ -70,7 +70,7 @@ export function StudentLayout() {
                     }`}
                 >
                   <BookOpen className="h-4 w-4 mr-2" />
-                  My Classes
+                  My Courses
                 </Button>
               )}
             </NavLink>

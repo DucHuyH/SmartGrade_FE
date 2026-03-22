@@ -9,9 +9,11 @@ import { CourseManagement } from './app/pages/lecturer/CourseManagement'
 import { CourseAssignments } from './app/pages/lecturer/CourseAsssigments'
 import { CreateAssignment } from './app/pages/lecturer/CreateAssignment'
 import { EditAssignment } from './app/pages/lecturer/EditAssignment'
+import { CourseStudentList } from './app/pages/lecturer/CourseStudentList'
 
 
 import { StudentDashboard } from './app/pages/student/StudentDashboard'
+import { MyCourses } from './app/pages/student/MyCourses'
 import { ErrorBoundary } from './app/components/ErrorBoundary'
 
 export const router = createBrowserRouter([
@@ -53,6 +55,10 @@ export const router = createBrowserRouter([
         path: 'assignments/:assignment_id/edit',
         Component: EditAssignment
       },
+      {
+        path: 'courses/:course_id/students',
+        Component: CourseStudentList
+      }
     ]
   },
   {
@@ -63,7 +69,12 @@ export const router = createBrowserRouter([
       {
         path: 'dashboard',
         Component: StudentDashboard
+      },
+      {
+        path: 'courses',
+        Component: MyCourses
       }
+
     ]
   }
 ])

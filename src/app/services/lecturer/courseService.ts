@@ -1,5 +1,11 @@
 import axiosInstance from "./axios";
 
+export type ImportCourseStudentPayload = {
+    student_id: string;
+    name: string;
+    email: string;
+};
+
 // Get all courses for the lecturer
 // export const getAllCourses = async ({
 //     pageNumber = 1,
@@ -113,6 +119,21 @@ export const deleteCourse = async (courseId: string) => {
         return response.data;
     } catch (error) {
         console.error(`Error deleting course ${courseId}:`, error);
+        throw error;
+    }
+};
+
+export const importCourseStudents = async (
+    courseId: string,
+    students: ImportCourseStudentPayload[]
+) => {
+    try {
+        const response = await axiosInstance.post(`/courses/${courseId}/students/import`, {
+            students,
+        });
+        return response.data?.data ?? response.data;
+    } catch (error) {
+        console.error(`Error importing students for course ${courseId}:`, error);
         throw error;
     }
 };
