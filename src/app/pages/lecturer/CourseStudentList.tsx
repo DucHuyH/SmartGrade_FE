@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router';
-import { Download, Upload, Users } from 'lucide-react';
+import { Download, Loader2, Upload } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { Course } from '../../../model';
 import { Breadcrumb } from '../../components/Breadcrumb';
@@ -12,7 +12,7 @@ import { Pagination } from '../../components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Assignment } from '../../../model/assignment';
 import { getAssignmentsForCourse } from '../../services/lecturer/assignmentService';
-import { getCourseDetails, importCourseStudents } from '../../services/lecturer/courseService';
+import { getCourseDetails, getCourseStudents, importCourseStudents } from '../../services/lecturer/courseService';
 
 type StudentListItem = {
     id: string;
@@ -23,35 +23,6 @@ type StudentListItem = {
 };
 
 const PAGE_SIZE = 20;
-
-const mockStudentsByCourse: Record<string, StudentListItem[]> = {
-    CS301: [
-        {
-            id: 'S001',
-            studentId: '20230000001',
-            name: 'Emma Wilson',
-            email: 'emma.wilson@university.edu',
-        },
-        {
-            id: 'S002',
-            studentId: '20230000002',
-            name: 'Michael Chen',
-            email: 'michael.chen@university.edu',
-        },
-        {
-            id: 'S003',
-            studentId: '20230000003',
-            name: 'Sarah Johnson',
-            email: 'sarah.johnson@university.edu',
-        },
-        {
-            id: 'S004',
-            studentId: '20230000004',
-            name: 'David Kim',
-            email: 'david.kim@university.edu',
-        },
-    ],
-};
 
 const parseCoursePayload = (payload: unknown): Course | null => {
     const root = (payload as Record<string, unknown>)?.data ?? payload;
@@ -81,6 +52,58 @@ const parseAssignmentListPayload = (payload: unknown): Assignment[] => {
     return Array.isArray(assignmentList) ? assignmentList : [];
 };
 
+const isImportSuccess = (payload: unknown): boolean => {
+    if (!payload || typeof payload !== 'object') {
+        return false;
+    }
+
+    const root = payload as Record<string, unknown>;
+    const nested = root.data as Record<string, unknown> | undefined;
+
+    if (typeof root.success === 'boolean') {
+        return root.success;
+    }
+
+    if (typeof nested?.success === 'boolean') {
+        return nested.success;
+    }
+
+    return false;
+};
+
+const parseStudentListPayload = (payload: unknown): StudentListItem[] => {
+    const root = (payload as Record<string, unknown>) ?? {};
+    const nested = (root.data as Record<string, unknown> | undefined) ?? {};
+
+    const studentList =
+        (root.course as unknown[] | undefined) ??
+        (root.students as unknown[] | undefined) ??
+        (nested.course as unknown[] | undefined) ??
+        (nested.students as unknown[] | undefined) ??
+        (Array.isArray(payload) ? payload : []);
+
+    if (!Array.isArray(studentList)) {
+        return [];
+    }
+
+    return studentList
+        .map((student) => {
+            const item = (student as Record<string, unknown>) ?? {};
+            const userId = item.user_id;
+            const studentCode = item.user_code;
+            const name = item.name;
+            const email = item.email;
+
+            return {
+                id: String(userId ?? ''),
+                studentId: String(studentCode ?? ''),
+                name: String(name ?? ''),
+                email: String(email ?? ''),
+            } satisfies StudentListItem;
+        })
+        .filter((student) => student.id && student.studentId && student.name && student.email);
+};
+
 export function CourseStudentList() {
     const { course_id } = useParams();
 
@@ -90,12 +113,36 @@ export function CourseStudentList() {
     const [currentPage, setCurrentPage] = useState(1);
     const [isLoadingCourse, setIsLoadingCourse] = useState(false);
     const [isLoadingAssignments, setIsLoadingAssignments] = useState(false);
+    const [isLoadingStudents, setIsLoadingStudents] = useState(false);
     const [isImportOpen, setIsImportOpen] = useState(false);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
 
-    useEffect(() => {
-        setStudents(mockStudentsByCourse.CS301 ?? []);
-    }, []);
+    const fetchStudents = async (silent = false) => {
+        if (!course_id) {
+            setStudents([]);
+            return;
+        }
+
+        if (!silent) {
+            setIsLoadingStudents(true);
+        }
+
+        try {
+            const response = await getCourseStudents(course_id);
+            const parsedStudents = parseStudentListPayload(response);
+            setStudents(parsedStudents);
+        } catch (error) {
+            console.error('Error fetching students for course:', error);
+            setStudents([]);
+            if (!silent) {
+                toast.error('Failed to load student list.');
+            }
+        } finally {
+            if (!silent) {
+                setIsLoadingStudents(false);
+            }
+        }
+    };
 
     useEffect(() => {
         if (!course_id) {
@@ -118,6 +165,14 @@ export function CourseStudentList() {
         };
 
         fetchCourse();
+    }, [course_id]);
+
+    useEffect(() => {
+        if (!course_id) {
+            return;
+        }
+
+        fetchStudents();
     }, [course_id]);
 
     useEffect(() => {
@@ -175,45 +230,22 @@ export function CourseStudentList() {
         return filteredStudents.slice(startIndex, startIndex + PAGE_SIZE);
     }, [currentPage, filteredStudents]);
 
-    const handleImportStudents = async (importedRows: ImportStudentRow[]) => {
+    const handleImportStudents = async ({ file, rows }: { file: File; rows: ImportStudentRow[] }) => {
         if (!course_id) {
             toast.error('Course is not selected.');
             throw new Error('Missing course id');
         }
 
         try {
-            await importCourseStudents(
-                course_id,
-                importedRows.map((row) => ({
-                    student_id: row.studentId,
-                    name: row.name,
-                    email: row.email,
-                }))
-            );
+            const importResult = await importCourseStudents(course_id, file);
 
-            const importedStudents: StudentListItem[] = importedRows.map((row, index) => ({
-                id: `IMP-${Date.now()}-${index}`,
-                studentId: row.studentId,
-                name: row.name,
-                email: row.email,
-            }));
+            if (!isImportSuccess(importResult)) {
+                throw new Error('Import API returned unsuccessful status.');
+            }
 
-            setStudents((previous) => {
-                const byStudentId = new Map<string, StudentListItem>();
-
-                previous.forEach((student) => {
-                    byStudentId.set(student.studentId, student);
-                });
-
-                importedStudents.forEach((student) => {
-                    byStudentId.set(student.studentId, student);
-                });
-
-                return Array.from(byStudentId.values());
-            });
-
+            await fetchStudents(true);
             setCurrentPage(1);
-            toast.success(`Imported ${importedRows.length} students successfully.`);
+            toast.success(`Imported ${rows.length} students successfully.`);
         } catch (error) {
             console.error('Import students failed:', error);
             toast.error('Import failed. Please check data and try again.');
@@ -286,9 +318,11 @@ export function CourseStudentList() {
                     <CardDescription>
                         {isLoadingCourse
                             ? 'Loading course information...'
-                            : isLoadingAssignments
-                                ? 'Loading assignments...'
-                                : 'Imported students for this course'}
+                            : isLoadingStudents
+                                ? 'Loading students...'
+                                : isLoadingAssignments
+                                    ? 'Loading assignments...'
+                                    : 'Imported students for this course'}
                     </CardDescription>
                 </CardHeader>
 
@@ -300,19 +334,29 @@ export function CourseStudentList() {
                                     <TableHead className="w-48">Student ID</TableHead>
                                     <TableHead className="w-64">Name</TableHead>
                                     <TableHead>Email</TableHead>
-                                        {assignments.map((assignment) => (
-                                            <TableHead key={assignment.assignment_id} className="text-center min-w-35">
-                                                {assignment.title}
-                                            </TableHead>
-                                        ))}
+                                    {assignments.map((assignment) => (
+                                        <TableHead key={assignment.assignment_id} className="text-center min-w-35">
+                                            {assignment.title}
+                                        </TableHead>
+                                    ))}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {pagedStudents.map((student) => (
-                                    <TableRow key={student.id}>
-                                        <TableCell className="text-gray-600">{student.studentId}</TableCell>
-                                        <TableCell>{student.name}</TableCell>
-                                        <TableCell className="text-gray-600 text-sm">{student.email}</TableCell>
+                                {isLoadingStudents ? (
+                                    <TableRow>
+                                        <TableCell colSpan={3 + assignments.length} className="py-8">
+                                            <div className="flex items-center justify-center gap-2 text-gray-500">
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                                <span>Loading student list...</span>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : pagedStudents.length > 0 ? (
+                                    pagedStudents.map((student) => (
+                                        <TableRow key={student.id}>
+                                            <TableCell className="text-gray-600">{student.studentId}</TableCell>
+                                            <TableCell>{student.name}</TableCell>
+                                            <TableCell className="text-gray-600 text-sm">{student.email}</TableCell>
                                             {assignments.map((assignment) => {
                                                 const score = student.assignmentScores?.[assignment.assignment_id];
                                                 return (
@@ -321,8 +365,17 @@ export function CourseStudentList() {
                                                     </TableCell>
                                                 );
                                             })}
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={3 + assignments.length} className="text-center text-gray-500 py-8">
+                                            {searchQuery.trim()
+                                                ? `No students found matching "${searchQuery}".`
+                                                : 'No student data yet. Please import the list to get started.'}
+                                        </TableCell>
                                     </TableRow>
-                                ))}
+                                )}
                             </TableBody>
                         </Table>
                     </div>
@@ -330,24 +383,6 @@ export function CourseStudentList() {
                     <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
                 </CardContent>
             </Card>
-
-            {filteredStudents.length === 0 && students.length > 0 && (
-                <div className="text-center py-12 text-gray-500">No students found matching "{searchQuery}"</div>
-            )}
-
-            {students.length === 0 && (
-                <Card>
-                    <CardContent className="py-12 text-center">
-                        <Users className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500 mb-4">No students enrolled yet</p>
-                        <p className="text-sm text-gray-400 mb-4">Import a student list to get started</p>
-                        <Button onClick={() => setIsImportOpen(true)}>
-                            <Upload className="h-4 w-4 mr-2" />
-                            Import Students
-                        </Button>
-                    </CardContent>
-                </Card>
-            )}
         </div>
     );
 }

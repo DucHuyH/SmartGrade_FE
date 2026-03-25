@@ -153,6 +153,8 @@ export function CourseAssignments() {
             const assignmentList = response.data.course || [];
             const paginationData = response.data.pagination || {};
 
+            console.log('Fetched assignments:', assignmentList);
+
             setAssignments(assignmentList);
             setTotalItems(paginationData.totalItems || 0);
             setTotalPages(paginationData.totalPages || 1);

@@ -16,7 +16,7 @@ export type ImportStudentRow = {
 type ImportExcelModalProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onImport: (rows: ImportStudentRow[]) => Promise<void>;
+    onImport: (payload: { file: File; rows: ImportStudentRow[] }) => Promise<void>;
 };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -27,17 +27,14 @@ function normalizeHeader(header: string) {
     return header.replace(/\s+/g, '').toLowerCase();
 }
 
-function extractCellValue(row: Record<string, unknown>, headerName: string) {
-    const matchKey = Object.keys(row).find((key) => normalizeHeader(key) === headerName);
-    if (!matchKey) {
-        return '';
-    }
-    return String(row[matchKey] ?? '').trim();
+function normalizeCellValue(cell: unknown) {
+    return String(cell ?? '').trim();
 }
 
 export function ImportExcelModal({ open, onOpenChange, onImport }: ImportExcelModalProps) {
     const [isParsing, setIsParsing] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [fileName, setFileName] = useState('');
     const [rows, setRows] = useState<ImportStudentRow[]>([]);
     const [errors, setErrors] = useState<string[]>([]);
@@ -45,6 +42,7 @@ export function ImportExcelModal({ open, onOpenChange, onImport }: ImportExcelMo
     const previewRows = useMemo(() => rows.slice(0, 5), [rows]);
 
     const resetState = () => {
+        setSelectedFile(null);
         setFileName('');
         setRows([]);
         setErrors([]);
@@ -52,17 +50,17 @@ export function ImportExcelModal({ open, onOpenChange, onImport }: ImportExcelMo
         setIsImporting(false);
     };
 
-    const validateRows = (parsedRows: ImportStudentRow[]) => {
+    const validateRows = (parsedRows: ImportStudentRow[], rowNumberOffset: number) => {
         const validationErrors: string[] = [];
         const seenIds = new Set<string>();
         const seenEmails = new Set<string>();
 
         parsedRows.forEach((row, index) => {
-            const rowNumber = index + 2;
+            const rowNumber = index + rowNumberOffset;
 
-            if (!STUDENT_ID_REGEX.test(row.studentId)) {
-                validationErrors.push(`Row ${rowNumber}: StudentID must contain exactly 11 digits.`);
-            }
+            // if (!STUDENT_ID_REGEX.test(row.studentId)) {
+            //     validationErrors.push(`Row ${rowNumber}: StudentID must contain exactly 11 digits.`);
+            // }
 
             if (!row.name || row.name.length < 2) {
                 validationErrors.push(`Row ${rowNumber}: Name is required and must be at least 2 characters.`);
@@ -103,30 +101,26 @@ export function ImportExcelModal({ open, onOpenChange, onImport }: ImportExcelMo
             }
 
             const worksheet = workbook.Sheets[firstSheetName];
-            const jsonRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, {
+            const sheetRows = XLSX.utils.sheet_to_json<(string | number | null)[]>(worksheet, {
+                header: 1,
                 defval: '',
             });
 
-            if (jsonRows.length === 0) {
+            if (sheetRows.length === 0) {
                 setErrors(['The file is empty.']);
                 return;
             }
 
-            const firstRowKeys = Object.keys(jsonRows[0]).map((key) => normalizeHeader(key));
-            const missingHeaders = REQUIRED_HEADERS.filter((header) => !firstRowKeys.includes(header));
+            const firstRow = (sheetRows[0] ?? []).map((cell) => normalizeHeader(normalizeCellValue(cell)));
+            const hasHeader = REQUIRED_HEADERS.every((header, index) => firstRow[index] === header);
+            const dataRows = hasHeader ? sheetRows.slice(1) : sheetRows;
+            const rowNumberOffset = hasHeader ? 2 : 1;
 
-            if (missingHeaders.length > 0) {
-                setErrors([
-                    `Missing required columns: ${missingHeaders.join(', ')}. Required columns are StudentID, Name, Email.`,
-                ]);
-                return;
-            }
-
-            const mappedRows = jsonRows
+            const mappedRows = dataRows
                 .map<ImportStudentRow>((row) => ({
-                    studentId: extractCellValue(row, 'studentid'),
-                    name: extractCellValue(row, 'name'),
-                    email: extractCellValue(row, 'email'),
+                    studentId: normalizeCellValue(row[0]),
+                    name: normalizeCellValue(row[1]),
+                    email: normalizeCellValue(row[2]),
                 }))
                 .filter((row) => row.studentId || row.name || row.email);
 
@@ -135,7 +129,7 @@ export function ImportExcelModal({ open, onOpenChange, onImport }: ImportExcelMo
                 return;
             }
 
-            const validationErrors = validateRows(mappedRows);
+            const validationErrors = validateRows(mappedRows, rowNumberOffset);
             if (validationErrors.length > 0) {
                 setErrors(validationErrors);
                 return;
@@ -157,18 +151,19 @@ export function ImportExcelModal({ open, onOpenChange, onImport }: ImportExcelMo
         }
 
         setFileName(selectedFile.name);
+        setSelectedFile(selectedFile);
         await parseExcel(selectedFile);
         event.target.value = '';
     };
 
     const handleImport = async () => {
-        if (!rows.length || errors.length > 0) {
+        if (!selectedFile || !rows.length || errors.length > 0) {
             return;
         }
 
         setIsImporting(true);
         try {
-            await onImport(rows);
+            await onImport({ file: selectedFile, rows });
             onOpenChange(false);
             resetState();
         } finally {
@@ -189,7 +184,7 @@ export function ImportExcelModal({ open, onOpenChange, onImport }: ImportExcelMo
                 <DialogHeader>
                     <DialogTitle>Import Student List</DialogTitle>
                     <DialogDescription>
-                        Upload an Excel file (.xlsx, .xls) with StudentID, Name, and Email columns.
+                        Upload an Excel file (.xlsx, .xls) in this column order: StudentID, Name, Email. Header row is optional.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -210,12 +205,13 @@ export function ImportExcelModal({ open, onOpenChange, onImport }: ImportExcelMo
                     </div>
 
                     <div className="bg-blue-50 p-3 rounded text-sm text-gray-700">
-                        <p className="mb-1">Required columns:</p>
+                        <p className="mb-1">Expected column order:</p>
                         <ul className="list-disc list-inside space-y-1 text-xs">
                             <li>StudentID (exactly 11 digits)</li>
                             <li>Name</li>
                             <li>Email (valid email format)</li>
                         </ul>
+                        <p className="text-xs mt-2">You can include header row or not.</p>
                     </div>
 
                     {errors.length > 0 && (
@@ -262,7 +258,7 @@ export function ImportExcelModal({ open, onOpenChange, onImport }: ImportExcelMo
                     <Button
                         onClick={handleImport}
                         className="w-full"
-                        disabled={isParsing || isImporting || !rows.length || errors.length > 0}
+                        disabled={isParsing || isImporting || !selectedFile || !rows.length || errors.length > 0}
                     >
                         <Upload className="h-4 w-4 mr-2" />
                         {isParsing ? 'Validating file...' : isImporting ? 'Importing...' : 'Import Students'}

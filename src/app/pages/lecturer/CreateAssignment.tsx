@@ -61,9 +61,12 @@ export function CreateAssignment() {
   const [enableAiGrading, setEnableAiGrading] = useState(true);
   const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>(FILE_TYPE_OPTIONS);
   const [deadlineTick, setDeadlineTick] = useState(Date.now());
-  const [assignmentFile, setAssignmentFile] = useState<File | null>(null);
-  const [isDraggingFile, setIsDraggingFile] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [questionFile, setQuestionFile] = useState<File | null>(null);
+  const [solutionFile, setSolutionFile] = useState<File | null>(null);
+  const [isDraggingQuestionFile, setIsDraggingQuestionFile] = useState(false);
+  const [isDraggingSolutionFile, setIsDraggingSolutionFile] = useState(false);
+  const questionFileInputRef = useRef<HTMLInputElement | null>(null);
+  const solutionFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const timerId = window.setInterval(() => {
@@ -129,41 +132,49 @@ export function CreateAssignment() {
     );
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setFile: (file: File | null) => void) => {
     const file = e.target.files?.[0];
     if (file) {
-      setAssignmentFile(file);
+      setFile(file);
     }
   };
 
-  const openFilePicker = () => {
-    fileInputRef.current?.click();
+  const openFilePicker = (ref: React.RefObject<HTMLInputElement | null>) => {
+    ref.current?.click();
   };
 
-  const clearSelectedFile = () => {
-    setAssignmentFile(null);
-    setIsDraggingFile(false);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+  const clearSelectedFile = (
+    setFile: (file: File | null) => void,
+    setDragging: (isDragging: boolean) => void,
+    ref: React.RefObject<HTMLInputElement | null>,
+  ) => {
+    setFile(null);
+    setDragging(false);
+    if (ref.current) {
+      ref.current.value = '';
     }
   };
 
-  const handleDragOver = (e: React.DragEvent<HTMLElement>) => {
+  const handleDragOver = (e: React.DragEvent<HTMLElement>, setDragging: (isDragging: boolean) => void) => {
     e.preventDefault();
-    setIsDraggingFile(true);
+    setDragging(true);
   };
 
-  const handleDragLeave = (e: React.DragEvent<HTMLElement>) => {
+  const handleDragLeave = (e: React.DragEvent<HTMLElement>, setDragging: (isDragging: boolean) => void) => {
     e.preventDefault();
-    setIsDraggingFile(false);
+    setDragging(false);
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLElement>) => {
+  const handleDrop = (
+    e: React.DragEvent<HTMLElement>,
+    setDragging: (isDragging: boolean) => void,
+    setFile: (file: File | null) => void,
+  ) => {
     e.preventDefault();
-    setIsDraggingFile(false);
+    setDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      setAssignmentFile(file);
+      setFile(file);
     }
   };
 
@@ -216,9 +227,14 @@ export function CreateAssignment() {
     try {
       let submitData: any;
 
-      if (assignmentFile) {
+      if (questionFile || solutionFile) {
         const formData = new FormData();
-        formData.append('file', assignmentFile);
+        if (questionFile) {
+          formData.append('question_file', questionFile);
+        }
+        if (solutionFile) {
+          formData.append('solution_file', solutionFile);
+        }
         formData.append('course_id', courseId);
         formData.append('title', title.trim());
         formData.append('description', description.trim());
@@ -377,56 +393,103 @@ export function CreateAssignment() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="assignment-file">Assignment File (Questions/Description)</Label>
-                <input
-                  id="assignment-file"
-                  ref={fileInputRef}
-                  type="file"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-                <div className="rounded-xl border border-gray-200 p-4 sm:p-6">
-                  {assignmentFile ? (
-                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="h-12 w-12 shrink-0 rounded-xl bg-red-100 text-red-600 flex items-center justify-center">
-                          <FileText className="h-6 w-6" />
+                <Label>Assignment Files</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="rounded-xl border border-gray-200 p-4 sm:p-6 space-y-3">
+                    <p className="text-sm font-medium text-gray-800">Question File</p>
+                    <input
+                      id="question-file"
+                      ref={questionFileInputRef}
+                      type="file"
+                      onChange={(e) => handleFileChange(e, setQuestionFile)}
+                      className="hidden"
+                    />
+                    {questionFile ? (
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="h-12 w-12 shrink-0 rounded-xl bg-red-100 text-red-600 flex items-center justify-center">
+                            <FileText className="h-6 w-6" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-base font-medium text-gray-900 truncate">{questionFile.name}</p>
+                            <p className="text-sm text-gray-500">{formatFileSizeMb(questionFile.size)}</p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-base font-medium text-gray-900 truncate">{assignmentFile.name}</p>
-                          <p className="text-sm text-gray-500">{formatFileSizeMb(assignmentFile.size)}</p>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => clearSelectedFile(setQuestionFile, setIsDraggingQuestionFile, questionFileInputRef)}
+                          className="h-9 w-9 rounded-md text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors flex items-center justify-center"
+                          aria-label="Remove selected question file"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
                       </div>
+                    ) : (
                       <button
                         type="button"
-                        onClick={clearSelectedFile}
-                        className="h-9 w-9 rounded-md text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors flex items-center justify-center"
-                        aria-label="Remove selected file"
+                        onClick={() => openFilePicker(questionFileInputRef)}
+                        onDragOver={(e) => handleDragOver(e, setIsDraggingQuestionFile)}
+                        onDragLeave={(e) => handleDragLeave(e, setIsDraggingQuestionFile)}
+                        onDrop={(e) => handleDrop(e, setIsDraggingQuestionFile, setQuestionFile)}
+                        className={`w-full rounded-xl border-2 border-dashed px-4 py-10 text-center transition-colors ${isDraggingQuestionFile ? 'border-blue-400 bg-blue-50' : 'border-gray-300 bg-white hover:primary/5 hover:border-primary'}`}
                       >
-                        <X className="h-5 w-5" />
+                        <div className="cursor-pointer">
+                          <Upload className="h-10 w-10 mx-auto text-gray-400 mb-3" />
+                          <p className="text-sm text-gray-600 mb-1">Click to upload or drag and drop</p>
+                          <p className="text-xs text-gray-400">PDF, Word, Text, or Excel (Max {maxFileSizeMb || '10'}MB)</p>
+                        </div>
                       </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={openFilePicker}
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      className={`w-full rounded-xl border-2 border-dashed px-4 py-14 text-center transition-colors ${isDraggingFile ? 'border-blue-400 bg-blue-50' : 'border-gray-300 bg-white hover:primary/5 hover:border-primary'}`}
-                    >
-                      <label htmlFor="assignment-file" className="cursor-pointer">
-                        <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                        <p className="text-sm text-gray-600 mb-1">
-                          Click to upload or drag and drop
-                        </p>
-                        <p className="text-xs text-gray-400">PDF, Word, Text, or Excel (Max {maxFileSizeMb || '10'}MB)</p>
-                      </label>
+                    )}
+                  </div>
 
-                    </button>
-                  )}
+                  <div className="rounded-xl border border-gray-200 p-4 sm:p-6 space-y-3">
+                    <p className="text-sm font-medium text-gray-800">Solution File</p>
+                    <input
+                      id="solution-file"
+                      ref={solutionFileInputRef}
+                      type="file"
+                      onChange={(e) => handleFileChange(e, setSolutionFile)}
+                      className="hidden"
+                    />
+                    {solutionFile ? (
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="h-12 w-12 shrink-0 rounded-xl bg-red-100 text-red-600 flex items-center justify-center">
+                            <FileText className="h-6 w-6" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-base font-medium text-gray-900 truncate">{solutionFile.name}</p>
+                            <p className="text-sm text-gray-500">{formatFileSizeMb(solutionFile.size)}</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => clearSelectedFile(setSolutionFile, setIsDraggingSolutionFile, solutionFileInputRef)}
+                          className="h-9 w-9 rounded-md text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors flex items-center justify-center"
+                          aria-label="Remove selected solution file"
+                        >
+                          <X className="h-5 w-5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openFilePicker(solutionFileInputRef)}
+                        onDragOver={(e) => handleDragOver(e, setIsDraggingSolutionFile)}
+                        onDragLeave={(e) => handleDragLeave(e, setIsDraggingSolutionFile)}
+                        onDrop={(e) => handleDrop(e, setIsDraggingSolutionFile, setSolutionFile)}
+                        className={`w-full rounded-xl border-2 border-dashed px-4 py-10 text-center transition-colors ${isDraggingSolutionFile ? 'border-blue-400 bg-blue-50' : 'border-gray-300 bg-white hover:primary/5 hover:border-primary'}`}
+                      >
+                        <div className="cursor-pointer">
+                          <Upload className="h-10 w-10 mx-auto text-gray-400 mb-3" />
+                          <p className="text-sm text-gray-600 mb-1">Click to upload or drag and drop</p>
+                          <p className="text-xs text-gray-400">PDF, Word, Text, or Excel (Max {maxFileSizeMb || '10'}MB)</p>
+                        </div>
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <p className="text-xs text-gray-500">File will be uploaded when you save the assignment.</p>
+                <p className="text-xs text-gray-500">Files will be uploaded when you save the assignment.</p>
               </div>
             </CardContent>
           </Card>

@@ -1,11 +1,5 @@
 import axiosInstance from "./axios";
 
-export type ImportCourseStudentPayload = {
-    student_id: string;
-    name: string;
-    email: string;
-};
-
 // Get all courses for the lecturer
 // export const getAllCourses = async ({
 //     pageNumber = 1,
@@ -125,15 +119,42 @@ export const deleteCourse = async (courseId: string) => {
 
 export const importCourseStudents = async (
     courseId: string,
-    students: ImportCourseStudentPayload[]
+    file: File,
 ) => {
     try {
-        const response = await axiosInstance.post(`/courses/${courseId}/students/import`, {
-            students,
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await axiosInstance.post(`/courses/${courseId}/import-students`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
         });
+        if (!response.data || !response.data.data) {
+            throw new Error("Invalid response format: missing 'data' field");
+        }
+        else {
+            console.log('Raw response data for importing students:', response.data);
+        }
         return response.data?.data ?? response.data;
     } catch (error) {
         console.error(`Error importing students for course ${courseId}:`, error);
+        throw error;
+    }
+};
+
+export const getCourseStudents = async (courseId: string) => {
+    try {
+        const response = await axiosInstance.get(`/courses/${courseId}/students`);
+        if (!response.data || !response.data.data) {
+            throw new Error("Invalid response format: missing 'data' field");
+        }
+        else {
+            console.log('Raw response data for course students:', response.data);
+        }
+        return response.data?.data ?? response.data;
+    } catch (error) {
+        console.error(`Error fetching students for course ${courseId}:`, error);
         throw error;
     }
 };
