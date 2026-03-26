@@ -1,169 +1,148 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Progress } from '../../components/ui/progress';
 import { SearchBar } from '../../components/SearchBar';
-import { BookOpen, Users, FileText, Clock } from 'lucide-react';
+import { BookOpen, Loader2, User } from 'lucide-react';
 import { Link } from 'react-router';
 import { Button } from '../../components/ui/button';
-
-const courses = [
-  {
-    id: 'CS301',
-    name: 'Data Structures & Algorithms',
-    code: 'CS301',
-    lecturer: 'Dr. Sarah Johnson',
-    schedule: 'Mon, Wed 10:00-11:30',
-    progress: 75,
-    assignments: { completed: 6, total: 8 },
-    grade: 'A',
-    average: 91.5,
-  },
-  {
-    id: 'CS405',
-    name: 'Database Management Systems',
-    code: 'CS405',
-    lecturer: 'Prof. Michael Chen',
-    schedule: 'Tue, Thu 14:00-15:30',
-    progress: 70,
-    assignments: { completed: 5, total: 7 },
-    grade: 'A-',
-    average: 89.2,
-  },
-  {
-    id: 'CS502',
-    name: 'Machine Learning',
-    code: 'CS502',
-    lecturer: 'Dr. Emily Roberts',
-    schedule: 'Wed, Fri 16:00-17:30',
-    progress: 65,
-    assignments: { completed: 4, total: 6 },
-    grade: 'A',
-    average: 93.8,
-  },
-  {
-    id: 'CS601',
-    name: 'Advanced Software Engineering',
-    code: 'CS601',
-    lecturer: 'Prof. James Wilson',
-    schedule: 'Mon, Fri 13:00-14:30',
-    progress: 80,
-    assignments: { completed: 7, total: 8 },
-    grade: 'B+',
-    average: 87.4,
-  },
-];
+import { Pagination } from '../../components/ui/pagination';
+import { toast } from 'react-toastify';
+import { getStudentCourses, StudentCourseApiItem } from '../../services/student/courseService';
 
 export function MyCourses() {
+  const [courses, setCourses] = useState<StudentCourseApiItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
-  // Filter courses based on search query
-  const filteredCourses = courses.filter((course) =>
-    course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    course.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    course.lecturer.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const limit = 10;
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 400);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchQuery]);
+
+  useEffect(() => {
+    const fetchCourses = async () => {
+      setIsLoading(true);
+      try {
+        const result = await getStudentCourses({
+          page: currentPage,
+          limit,
+          search: debouncedSearchQuery,
+        });
+
+        setCourses(result.courses);
+        setTotalItems(result.pagination.totalItems);
+        setTotalPages(result.pagination.totalPages);
+      } catch (error) {
+        console.error('Error fetching student courses:', error);
+        setCourses([]);
+        setTotalItems(0);
+        setTotalPages(1);
+        toast.error('Failed to load your courses.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCourses();
+  }, [currentPage, debouncedSearchQuery]);
+
+  const filteredCourses = useMemo(() => {
+    return courses;
+  }, [courses]);
 
   return (
     <div className="space-y-6">
       <div>
-        <h2>My Classes</h2>
-        <p className="text-sm text-gray-600">Spring 2026 Semester</p>
+        <h2>My Courses</h2>
+        <p className="text-sm text-gray-600">Courses enrolled for your account</p>
       </div>
 
-      {/* Overall Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Total Classes</CardTitle>
+            <CardTitle className="text-sm">Total Courses</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl">4</div>
+            <div className="text-2xl">{totalItems}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Average Grade</CardTitle>
+            <CardTitle className="text-sm">Search Results</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl text-green-600">90.5%</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Assignments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl">22/29</div>
-            <p className="text-xs text-gray-500">Completed</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Overall Progress</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl">72%</div>
+            <div className="text-2xl text-blue-600">{totalItems}</div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Search Bar */}
       <SearchBar
         value={searchQuery}
         onChange={setSearchQuery}
-        placeholder="Search classes by name, code, or lecturer..."
+        placeholder="Search courses by name, code, or lecturer..."
         className="max-w-md"
       />
 
-      {/* Course Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {filteredCourses.map((course) => (
-          <Card key={course.id} className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <div className="flex justify-between items-start">
+        {isLoading ? (
+          <Card className="lg:col-span-2">
+            <CardContent className="py-12">
+              <div className="flex items-center justify-center gap-2 text-gray-500">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>Loading courses...</span>
+              </div>
+            </CardContent>
+          </Card>
+        ) : filteredCourses.map((course) => (
+          <Card key={String(course.course_id)} className="hover:shadow-md transition-shadow">
+            <CardHeader className="space-y-2">
+              <div className="flex items-start gap-2">
+                <BookOpen className="h-5 w-5 text-gray-500 mt-0.5" />
                 <div>
                   <CardTitle>{course.name}</CardTitle>
-                  <CardDescription>{course.code}</CardDescription>
-                </div>
-                <div className="text-right">
-                  <div className="text-lg text-green-600">{course.grade}</div>
-                  <div className="text-xs text-gray-600">{course.average}%</div>
+                  <CardDescription>{course.course_code}</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2 text-sm text-gray-600">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  <span>{course.lecturer}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-600">
+                <div>
+                  <span className="text-gray-500">Course ID:</span> {course.course_id}
                 </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  <span>{course.schedule}</span>
+                <div>
+                  <span className="text-gray-500">Lecturer ID:</span> {course.lecturer_id}
                 </div>
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  <span>
-                    {course.assignments.completed}/{course.assignments.total} Assignments
-                  </span>
+                <div>
+                  <span className="text-gray-500">Semester:</span> {course.semester}
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Course Progress</span>
-                  <span>{course.progress}%</span>
+                <div>
+                  <span className="text-gray-500">Academic Year:</span> {course.academic_year}
                 </div>
-                <Progress value={course.progress} className="h-2" />
+                <div className="sm:col-span-2 flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  <span>{course.lecturer?.name ?? 'N/A'}</span>
+                </div>
               </div>
 
               <div className="flex gap-2">
-                <Link to={`/student/assignments?class=${course.id}`} className="flex-1">
+                <Link to={`/student/courses/${course.course_id}/assignments`} className="flex-1">
                   <Button variant="outline" className="w-full">
                     View Assignments
                   </Button>
                 </Link>
-                <Link to={`/student/classes/${course.id}/materials`} className="flex-1">
+                <Link to={`/student/courses/${course.course_id}/materials`} className="flex-1">
                   <Button className="w-full">
                     Course Materials
                   </Button>
@@ -174,9 +153,15 @@ export function MyCourses() {
         ))}
       </div>
 
-      {filteredCourses.length === 0 && (
+      {!isLoading && totalPages > 1 && (
+        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+      )}
+
+      {!isLoading && filteredCourses.length === 0 && (
         <div className="text-center py-12 text-gray-500">
-          No courses found matching "{searchQuery}"
+          {debouncedSearchQuery
+            ? `No courses found matching "${searchQuery}"`
+            : 'No enrolled courses found.'}
         </div>
       )}
     </div>

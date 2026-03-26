@@ -6,15 +6,24 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { ArrowLeft, ArrowUpFromLine, FileText, Loader2, Save, X, Upload } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2, Save, X, Upload, Plus, Trash2 } from 'lucide-react';
 import { Course } from '../../../model';
-import { Assignment } from '../../../model/assignment';
+import { CriteriaPayload, RubricPayload } from '../../../model/rubric';
 import { createAssignment } from '../../services/lecturer/assignmentService';
 import { getAllCourses } from '../../services/lecturer/courseService';
 import { toast } from 'react-toastify';
 
 const FILE_TYPE_OPTIONS = ['pdf', 'docx', 'xlsx', 'txt']
 const DEADLINE_OFFSET_MINUTES = 5
+
+type CriteriaDraft = CriteriaPayload
+
+const createEmptyCriteria = (): CriteriaDraft => ({
+  criteria_name: '',
+  description: '',
+  max_score: 0,
+  weight: 1,
+})
 
 const toIsoDate = (value: string) => {
   const date = new Date(value)
@@ -65,6 +74,9 @@ export function CreateAssignment() {
   const [solutionFile, setSolutionFile] = useState<File | null>(null);
   const [isDraggingQuestionFile, setIsDraggingQuestionFile] = useState(false);
   const [isDraggingSolutionFile, setIsDraggingSolutionFile] = useState(false);
+  const [criteriaList, setCriteriaList] = useState<CriteriaDraft[]>([
+    createEmptyCriteria(),
+  ]);
   const questionFileInputRef = useRef<HTMLInputElement | null>(null);
   const solutionFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -112,6 +124,10 @@ export function CreateAssignment() {
   }, [courseFromQuery])
 
   const totalSelectedFileTypes = useMemo(() => selectedFileTypes.join(', '), [selectedFileTypes])
+  const rubricPoints = useMemo(
+    () => criteriaList.reduce((sum, criteria) => sum + (Number(criteria.max_score) || 0), 0),
+    [criteriaList],
+  )
   const minimumDeadlineInput = useMemo(() => getMinimumDeadlineInput(), [deadlineTick])
   const deadlineMinForPicker = useMemo(() => {
     const selectedDate = deadline.slice(0, 10)
@@ -131,6 +147,59 @@ export function CreateAssignment() {
         : [...prev, fileType]
     );
   };
+
+  const addCriteria = () => {
+    setCriteriaList((prev) => [...prev, createEmptyCriteria()])
+  }
+
+  const removeCriteria = (index: number) => {
+    setCriteriaList((prev) => {
+      if (prev.length <= 1) {
+        return prev
+      }
+
+      return prev.filter((_, currentIndex) => currentIndex !== index)
+    })
+  }
+
+  const updateCriteriaName = (index: number, value: string) => {
+    setCriteriaList((prev) =>
+      prev.map((criteria, currentIndex) =>
+        currentIndex === index
+          ? {
+            ...criteria,
+            criteria_name: value,
+          }
+          : criteria,
+      ),
+    )
+  }
+
+  const updateCriteriaMaxScore = (index: number, value: string) => {
+    const parsed = Number(value)
+    setCriteriaList((prev) =>
+      prev.map((criteria, currentIndex) =>
+        currentIndex === index
+          ? {
+            ...criteria,
+            max_score: Number.isFinite(parsed) ? parsed : 0,
+          }
+          : criteria,
+      ),
+    )
+  }
+
+  const getRubricPayload = (): RubricPayload => {
+    return {
+      title: title.trim() ? `Rubric for ${title.trim()}` : 'Assignment Rubric',
+      criteria: criteriaList.map((criteria) => ({
+        criteria_name: criteria.criteria_name.trim(),
+        description: criteria.description.trim(),
+        max_score: Number(criteria.max_score) || 0,
+        weight: Number(criteria.weight) || 1,
+      })),
+    }
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setFile: (file: File | null) => void) => {
     const file = e.target.files?.[0];
@@ -223,9 +292,28 @@ export function CreateAssignment() {
       return
     }
 
+    const hasEmptyCriteriaName = criteriaList.some((criteria) => !criteria.criteria_name.trim())
+    if (hasEmptyCriteriaName) {
+      toast.error('Each rubric criteria must have a name.')
+      return
+    }
+
+    const hasInvalidCriteriaScore = criteriaList.some((criteria) => (Number(criteria.max_score) || 0) <= 0)
+    if (hasInvalidCriteriaScore) {
+      toast.error('Each rubric criteria must have points greater than 0.')
+      return
+    }
+
+    if (rubricPoints !== parsedMaxScore) {
+      toast.error('Total rubric points must match Assignment Total Points.')
+      return
+    }
+
+    const rubricPayload = getRubricPayload()
+
     setIsSubmitting(true);
     try {
-      let submitData: any;
+      let submitData: FormData | Record<string, unknown>;
 
       if (questionFile || solutionFile) {
         const formData = new FormData();
@@ -246,6 +334,7 @@ export function CreateAssignment() {
         formData.append('max_file_size_mb', String(parsedMaxFileSize));
         formData.append('allow_late_submissions', String(allowLateSubmissions));
         formData.append('enable_ai_grading', String(enableAiGrading));
+        formData.append('rubric', JSON.stringify(rubricPayload));
         submitData = formData;
       } else {
         submitData = {
@@ -260,6 +349,7 @@ export function CreateAssignment() {
           max_file_size_mb: parsedMaxFileSize,
           allow_late_submissions: allowLateSubmissions,
           enable_ai_grading: enableAiGrading,
+          rubric: rubricPayload,
         };
       }
 
@@ -490,6 +580,51 @@ export function CreateAssignment() {
                   </div>
                 </div>
                 <p className="text-xs text-gray-500">Files will be uploaded when you save the assignment.</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className='flex flex-row items-center justify-between space-y-0'>
+              <div>
+                <CardTitle>Grading Rubrics</CardTitle>
+                <CardDescription>Define criteria and point distribution</CardDescription>
+              </div>
+              <Button type='button' variant='outline' onClick={addCriteria}>
+                <Plus className='h-4 w-4 mr-2' />
+                Add Criteria
+              </Button>
+            </CardHeader>
+            <CardContent className='space-y-3'>
+              {criteriaList.map((criteria, index) => (
+                <div key={`${criteria.criteria_id ?? 'new'}-${index}`} className='grid grid-cols-[1fr_120px_40px] gap-3'>
+                  <Input
+                    value={criteria.criteria_name}
+                    onChange={(event) => updateCriteriaName(index, event.target.value)}
+                    placeholder='Criteria name'
+                  />
+                  <Input
+                    type='number'
+                    min={1}
+                    value={criteria.max_score}
+                    onChange={(event) => updateCriteriaMaxScore(index, event.target.value)}
+                    placeholder='Points'
+                  />
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    onClick={() => removeCriteria(index)}
+                    disabled={criteriaList.length <= 1}
+                    className='text-red-600 hover:text-red-700'
+                  >
+                    <Trash2 className='h-4 w-4' />
+                  </Button>
+                </div>
+              ))}
+
+              <div className='border-t pt-4 flex items-center justify-between text-sm'>
+                <span>Total Points:</span>
+                <span className='font-semibold'>{rubricPoints} / {totalPoints || '0'}</span>
               </div>
             </CardContent>
           </Card>

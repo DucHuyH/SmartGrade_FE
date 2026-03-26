@@ -106,6 +106,7 @@ export function CourseManagement() {
       if (response.success) {
         const courseData = response.data?.course ?? [];
         const paginationData = response.data?.pagination;
+        console.log('Fetched courses:', courseData);
 
         setCourses(courseData);
         setTotalItems(paginationData?.totalItems ?? 0);

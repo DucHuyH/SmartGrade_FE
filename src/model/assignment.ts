@@ -1,3 +1,5 @@
+import { Rubric } from './rubric';
+
 export interface Assignment {
     assignment_id: string;
     course_id: string;
@@ -21,5 +23,6 @@ export interface Assignment {
     updated_at?: string;
     submitted_count?: number;
     graded_count?: number;
-    
+    rubric?: Rubric | null;
+
 }

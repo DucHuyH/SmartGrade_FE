@@ -1,4 +1,3 @@
-import { Course } from "../../../model";
 import { Assignment } from "../../../model/assignment";
 import axiosInstance from "./axios";
 
@@ -34,13 +33,33 @@ export const getAssignmentsForCourse = async (
 
 export const getAssignmentDetails = async (assignmentId: string) => {
     try {
-        const response = await axiosInstance.get(
-            `/assignments/detail/${assignmentId}/`
-        );
-        if (!response.data || !response.data.data) {
+        const response = await axiosInstance.get(`/assignments/detail/${assignmentId}/`);
+        const payload = response.data?.data as Record<string, unknown> | undefined;
+
+        if (!payload) {
             throw new Error("Invalid response format: missing 'data' field");
         }
-        return response.data.data;
+
+        const root = (payload.data as Record<string, unknown> | undefined) ?? payload;
+        const assignmentContainer =
+            (root?.assignment as Record<string, unknown> | undefined) ??
+            root;
+        const assignmentRecord =
+            (assignmentContainer?.assignment as Record<string, unknown> | undefined) ?? assignmentContainer;
+
+        if (!assignmentRecord?.assignment_id) {
+            throw new Error("Invalid assignment detail format");
+        }
+
+        const rubricRecord =
+            assignmentContainer?.rubric ??
+            root?.rubric ??
+            null;
+
+        return {
+            ...(assignmentRecord as unknown as Assignment),
+            rubric: rubricRecord as Assignment["rubric"],
+        };
     } catch (error) {
         console.error(
             `Error fetching details for assignment ${assignmentId}:`, error
@@ -49,7 +68,7 @@ export const getAssignmentDetails = async (assignmentId: string) => {
 };
 
 export const createAssignment = async (
-    assignmentData: Omit<Assignment, "assignment_id"> | FormData
+    assignmentData: Record<string, unknown> | FormData
 ) => {
     try {
         const config = assignmentData instanceof FormData ? {
@@ -74,7 +93,7 @@ export const createAssignment = async (
 
 export const updateAssignment = async (
     assignmentId: string,
-    assignmentData: Partial<Assignment> | FormData,
+    assignmentData: Record<string, unknown> | FormData,
 ) => {
     try {
         const config = assignmentData instanceof FormData ? {
