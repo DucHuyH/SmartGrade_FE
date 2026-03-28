@@ -88,3 +88,38 @@ export const getAssignmentsForCourse = async (
         throw error;
     }
 };
+
+export const getAssignmentDetails = async (assignmentId: string): Promise<Assignment> => {
+    try {
+        const response = await axiosInstance.get(`/assignments/detail/${assignmentId}/`);
+        const payload = response.data?.data as Record<string, unknown> | undefined;
+
+        if (!payload) {
+            throw new Error("Invalid response format: missing 'data' field");
+        }
+
+        const root = (payload.data as Record<string, unknown> | undefined) ?? payload;
+        const assignmentContainer =
+            (root?.assignment as Record<string, unknown> | undefined) ??
+            root;
+        const assignmentRecord =
+            (assignmentContainer?.assignment as Record<string, unknown> | undefined) ?? assignmentContainer;
+
+        if (!assignmentRecord?.assignment_id) {
+            throw new Error('Invalid assignment detail format');
+        }
+
+        const rubricRecord =
+            assignmentContainer?.rubric ??
+            root?.rubric ??
+            null;
+
+        return {
+            ...(assignmentRecord as unknown as Assignment),
+            rubric: rubricRecord as Assignment['rubric'],
+        };
+    } catch (error) {
+        console.error(`Error fetching details for assignment ${assignmentId}:`, error);
+        throw error;
+    }
+};

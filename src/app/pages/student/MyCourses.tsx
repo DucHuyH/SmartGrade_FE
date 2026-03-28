@@ -234,16 +234,16 @@ export function MyCourses() {
             <CardHeader className="space-y-2">
               <div className="flex justify-between items-start">
                 <div className="flex items-start gap-2">
-                <BookOpen className="h-5 w-5 text-gray-500 mt-0.5" />
-                <div>
-                  <CardTitle>{course.name}</CardTitle>
-                  <CardDescription>{course.course_code}</CardDescription>
+                  <BookOpen className="h-5 w-5 text-gray-500 mt-0.5" />
+                  <div>
+                    <CardTitle>{course.name}</CardTitle>
+                    <CardDescription>{course.course_code}</CardDescription>
+                  </div>
                 </div>
+
+                <span className="text-xs bg-gray-100 px-2 py-1 rounded">{course.semester} {course.academic_year}</span>
               </div>
 
-               <span className="text-xs bg-gray-100 px-2 py-1 rounded">{course.semester} {course.academic_year}</span>
-              </div>
-              
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-600">
@@ -253,7 +253,7 @@ export function MyCourses() {
                 </div>
               </div>
 
-          
+
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <div className="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 text-gray-700">
                   <FileText className="h-4 w-4" />
@@ -269,10 +269,17 @@ export function MyCourses() {
                 )}
               </div>
 
-              
+
 
               <div className="flex gap-2">
-                <Link to={`/student/courses/${course.course_id}/assignments`} className="flex-1">
+                <Link
+                  to={`/student/courses/${course.course_id}/assignments`}
+                  state={{
+                    courseName: course.name,
+                    courseCode: course.course_code,
+                  }}
+                  className="flex-1"
+                >
                   <Button variant="outline" className="w-full">
                     View Assignments
                   </Button>

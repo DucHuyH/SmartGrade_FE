@@ -15,6 +15,7 @@ import { CourseStudentList } from './app/pages/lecturer/CourseStudentList'
 import { StudentDashboard } from './app/pages/student/StudentDashboard'
 import { MyCourses } from './app/pages/student/MyCourses'
 import { StudentAssignments } from './app/pages/student/StudentAssignments'
+import { AssignmentDetail } from './app/pages/student/AssignmentDetail'
 import { ErrorBoundary } from './app/components/ErrorBoundary'
 
 export const router = createBrowserRouter([
@@ -78,6 +79,10 @@ export const router = createBrowserRouter([
       {
         path: 'courses/:course_id/assignments',
         Component: StudentAssignments
+      },
+      {
+        path: 'courses/:course_id/assignments/:assignment_id',
+        Component: AssignmentDetail
       }
 
     ]

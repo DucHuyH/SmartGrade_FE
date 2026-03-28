@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useLocation, useParams } from 'react-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
@@ -93,6 +93,8 @@ const normalizeAllowedFileTypes = (value: unknown): string => {
 
 export function StudentAssignments() {
     const { course_id } = useParams();
+    const location = useLocation();
+    const navState = (location.state as { courseName?: string; courseCode?: string } | null) ?? null;
 
     const [course, setCourse] = useState<Course | null>(null);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -177,7 +179,7 @@ export function StudentAssignments() {
 
     const breadcrumbItems = [
         { label: 'My Courses', href: '/student/courses' },
-        { label: course?.name ?? 'Assignments' },
+        { label: course?.name ?? navState?.courseName ?? 'Assignments' },
     ];
 
     return (
@@ -185,8 +187,8 @@ export function StudentAssignments() {
             <Breadcrumb items={breadcrumbItems} />
 
             <div>
-                <h2>{course?.name ?? 'My Assignments'}</h2>
-                <p className="text-sm text-gray-600">{course?.course_code ?? course_id}</p>
+                <h2>{course?.name ?? navState?.courseName ?? 'My Assignments'}</h2>
+                <p className="text-sm text-gray-600">{course?.course_code ?? navState?.courseCode ?? course_id}</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -279,7 +281,14 @@ export function StudentAssignments() {
                                     </div>
 
                                     <div className="flex gap-2">
-                                        <Link to={`/student/courses/${course_id}/assignments/${assignment.assignment_id}`} className="flex-1">
+                                        <Link
+                                            to={`/student/courses/${course_id}/assignments/${assignment.assignment_id}`}
+                                            state={{
+                                                courseName: course?.name ?? navState?.courseName,
+                                                courseCode: course?.course_code ?? navState?.courseCode,
+                                            }}
+                                            className="flex-1"
+                                        >
                                             <Button variant="outline" className="w-full">View Details</Button>
                                         </Link>
                                         <Link to={`/student/submit/${assignment.assignment_id}`} className="flex-1">
