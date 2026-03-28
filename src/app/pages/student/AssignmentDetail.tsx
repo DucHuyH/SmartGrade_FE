@@ -339,7 +339,16 @@ export function AssignmentDetail() {
           </Card>
 
           <div className="space-y-3 flex flex-col">
-            <Link to={`/student/submit/${assignment.assignment_id}`}>
+            <Link
+              to={`/student/submit/${assignment.assignment_id}`}
+              state={{
+                assignment,
+                courseName,
+                backPath: resolvedCourseId
+                  ? `/student/courses/${resolvedCourseId}/assignments/${assignment.assignment_id}`
+                  : '/student/assignments',
+              }}
+            >
               <Button className="w-full">Submit Assignment</Button>
             </Link>
             <Link to={resolvedCourseId ? `/student/courses/${resolvedCourseId}/assignments` : '/student/assignments'}>

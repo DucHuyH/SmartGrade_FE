@@ -16,6 +16,7 @@ import { StudentDashboard } from './app/pages/student/StudentDashboard'
 import { MyCourses } from './app/pages/student/MyCourses'
 import { StudentAssignments } from './app/pages/student/StudentAssignments'
 import { AssignmentDetail } from './app/pages/student/AssignmentDetail'
+import { SubmitAssignment } from './app/pages/student/SubmitAssignment'
 import { ErrorBoundary } from './app/components/ErrorBoundary'
 
 export const router = createBrowserRouter([
@@ -83,6 +84,10 @@ export const router = createBrowserRouter([
       {
         path: 'courses/:course_id/assignments/:assignment_id',
         Component: AssignmentDetail
+      },
+      {
+        path: 'submit/:assignment_id',
+        Component: SubmitAssignment
       }
 
     ]

@@ -291,7 +291,16 @@ export function StudentAssignments() {
                                         >
                                             <Button variant="outline" className="w-full">View Details</Button>
                                         </Link>
-                                        <Link to={`/student/submit/${assignment.assignment_id}`} className="flex-1">
+                                        <Link
+                                            to={`/student/submit/${assignment.assignment_id}`}
+                                            state={{
+                                                assignment,
+                                                courseName: course?.name ?? navState?.courseName,
+                                                courseCode: course?.course_code ?? navState?.courseCode,
+                                                backPath: `/student/courses/${course_id}/assignments`,
+                                            }}
+                                            className="flex-1"
+                                        >
                                             <Button className="w-full">Submit Assignment</Button>
                                         </Link>
                                     </div>
