@@ -30,7 +30,7 @@ type GetAllCoursesParams = {
 
 export const getAllCourses = async ({
     page = 1,
-    limit = 2,
+    limit = 6,
     search = "",
     semester,
 }: GetAllCoursesParams) => {
@@ -51,6 +51,7 @@ export const getAllCourses = async ({
         if (!response.data || !response.data.data) {
             throw new Error("Invalid response format: missing 'data' field");
         }
+        console.log('Raw response data for courses:', response.data);
         return response.data.data;
     } catch (error) {
         console.error("Error fetching courses:", error);

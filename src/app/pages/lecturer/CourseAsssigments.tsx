@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -256,6 +256,15 @@ export function CourseAssignments() {
         { label: course?.name ?? 'Assignments' },
     ];
 
+    const createAssignmentLink = useMemo(() => {
+        if (!course?.course_id) {
+            return '/lecturer/assignments/create';
+        }
+
+        const encodedCourse = encodeURIComponent(JSON.stringify(course));
+        return `/lecturer/assignments/create?course=${encodedCourse}`;
+    }, [course]);
+
     return (
         <div className="space-y-6">
             <Breadcrumb items={breadcrumbItems} />
@@ -263,9 +272,9 @@ export function CourseAssignments() {
             <div className="flex justify-between items-center">
                 <div>
                     <h2>{course?.name ?? 'Course Assignments'}</h2>
-                    <p className="text-sm text-gray-600">{course?.course_code ?? course_id}</p>
+                    <p className="text-sm text-gray-600">{course?.course_code ?? course_id} - {course?.semester} - {course?.academic_year}</p>
                 </div>
-                <Link to={`/lecturer/assignments/create?course=${course_id}`}>
+                <Link to={createAssignmentLink}>
                     <Button>
                         <Plus className="h-4 w-4 mr-2" />
                         New Assignment
@@ -447,7 +456,7 @@ export function CourseAssignments() {
                                     ? `No assignments found matching "${debouncedSearchQuery}"`
                                     : 'No assignments created yet'}
                             </p>
-                            
+
                         </CardContent>
                     </Card>
                 )}
@@ -455,9 +464,9 @@ export function CourseAssignments() {
 
             {!isLoadingAssignments && assignments.length > 0 && (
                 <div className="space-y-3">
-                    <div className="text-sm text-gray-500 text-center">
+                    {/* <div className="text-sm text-gray-500 text-center">
                         Showing {assignments.length} assignments on page {currentPage} of {totalPages} ({totalItems} total)
-                    </div>
+                    </div> */}
                     <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={handlePageChange} />
                 </div>
             )}

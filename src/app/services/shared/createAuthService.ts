@@ -61,7 +61,7 @@ export const createAuthService = (axiosInstance: AxiosInstance, authConfig: Auth
 
     const ping = async () => {
         try {
-            const response = await axiosInstance.post(`/auth/${authConfig.pingPath}`, {}, { withCredentials: true })
+            const response = await axiosInstance.post(`/authhh/${authConfig.pingPath}`, {}, { withCredentials: true })
             return response.data
         } catch (error) {
             console.error('Ping error:', error)

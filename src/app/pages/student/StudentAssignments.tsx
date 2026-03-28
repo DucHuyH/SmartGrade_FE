@@ -260,22 +260,22 @@ export function StudentAssignments() {
                                     </p>
 
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-gray-600">
-                                        <div>
+                                        {/* <div>
                                             <span className="text-gray-500">Allow Late:</span>{' '}
                                             {assignment.allow_late_submissions ? 'Yes' : 'No'}
                                         </div>
                                         <div>
                                             <span className="text-gray-500">AI Grading:</span>{' '}
                                             {assignment.enable_ai_grading ? 'Enabled' : 'Disabled'}
-                                        </div>
-                                        <div>
+                                        </div> */}
+                                        {/* <div>
                                             <span className="text-gray-500">File Size:</span>{' '}
                                             {assignment.max_file_size_mb}MB
                                         </div>
                                         <div className="flex items-center gap-1">
                                             <Clock className="h-4 w-4" />
                                             <span>{normalizeAllowedFileTypes(assignment.allowed_file_types)}</span>
-                                        </div>
+                                        </div> */}
                                     </div>
 
                                     <div className="flex gap-2">

@@ -265,9 +265,9 @@ export function CourseStudentList() {
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h2>Student List - {course?.name}</h2>
+                    <h2>Student List</h2>
                     <p className="text-sm text-gray-600">
-                        {course?.course_code} - {course?.semester} {course?.academic_year}
+                        {course?.course_code}
                     </p>
                 </div>
 

@@ -65,7 +65,7 @@ export function CourseManagement() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState(6);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -106,18 +106,18 @@ export function CourseManagement() {
       if (response.success) {
         const courseData = response.data?.course ?? [];
         const paginationData = response.data?.pagination;
-        console.log('Fetched courses:', courseData);
+        // console.log('Fetched courses:', courseData);
 
         setCourses(courseData);
         setTotalItems(paginationData?.totalItems ?? 0);
         setTotalPages(paginationData?.totalPages ?? 1);
-        setLimit(paginationData?.limit ?? 10);
+        setLimit(paginationData?.limit ?? 6);
 
       } else {
         setCourses([]);
         setTotalItems(0);
         setTotalPages(1);
-        setLimit(10);
+        setLimit(6);
       }
     } catch (error) {
       console.error('Error fetching courses:', error);
@@ -580,9 +580,9 @@ export function CourseManagement() {
 
       {!isLoadingCourses && courses.length > 0 && (
         <div className="space-y-3">
-          <div className="text-sm text-gray-500 text-center">
+          {/* <div className="text-sm text-gray-500 text-center">
             Showing {courses.length} courses on page {currentPage} of {totalPages} ({totalItems} total)
-          </div>
+          </div> */}
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}

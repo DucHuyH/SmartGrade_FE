@@ -5,12 +5,10 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { ArrowLeft, FileText, Loader2, Save, X, Upload, Plus, Trash2 } from 'lucide-react';
 import { Course } from '../../../model';
 import { CriteriaPayload, RubricPayload } from '../../../model/rubric';
 import { createAssignment } from '../../services/lecturer/assignmentService';
-import { getAllCourses } from '../../services/lecturer/courseService';
 import { toast } from 'react-toastify';
 
 const FILE_TYPE_OPTIONS = ['pdf', 'docx', 'xlsx', 'txt']
@@ -52,13 +50,24 @@ const formatFileSizeMb = (bytes: number) => {
 export function CreateAssignment() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const courseFromQuery = searchParams.get('course') ?? '';
 
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [isLoadingCourses, setIsLoadingCourses] = useState(false);
+  const selectedCourse = useMemo(() => {
+    const rawCourse = searchParams.get('course')
+    if (!rawCourse) {
+      return null
+    }
+
+    try {
+      const parsed = JSON.parse(rawCourse) as Course
+      return parsed?.course_id ? parsed : null
+    } catch {
+      return null
+    }
+  }, [searchParams])
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [courseId, setCourseId] = useState(courseFromQuery);
+  const [courseId] = useState(selectedCourse?.course_id ?? '');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [questions, setQuestions] = useState('');
@@ -88,41 +97,6 @@ export function CreateAssignment() {
     return () => window.clearInterval(timerId)
   }, [])
 
-  useEffect(() => {
-    if (courseFromQuery) {
-      setCourseId(courseFromQuery)
-    }
-  }, [courseFromQuery])
-
-  useEffect(() => {
-    const fetchCourses = async () => {
-      setIsLoadingCourses(true)
-      try {
-        const response = await getAllCourses({ page: 1, limit: 100, search: '' })
-        const root = response?.data ?? {}
-        const coursesData = root?.course
-
-        if (Array.isArray(coursesData)) {
-          setCourses(coursesData)
-
-          if (!courseFromQuery && coursesData.length > 0) {
-            setCourseId(coursesData[0].course_id)
-          }
-        } else {
-          setCourses([])
-        }
-      } catch (error) {
-        console.error('Error fetching courses:', error)
-        setCourses([])
-        toast.error('Failed to load courses.')
-      } finally {
-        setIsLoadingCourses(false)
-      }
-    }
-
-    fetchCourses()
-  }, [courseFromQuery])
-
   const totalSelectedFileTypes = useMemo(() => selectedFileTypes.join(', '), [selectedFileTypes])
   const rubricPoints = useMemo(
     () => criteriaList.reduce((sum, criteria) => sum + (Number(criteria.max_score) || 0), 0),
@@ -139,6 +113,11 @@ export function CreateAssignment() {
 
     return minimumDeadlineInput
   }, [deadline, minimumDeadlineInput])
+
+  const selectedCourseLabel = useMemo(
+    () => (selectedCourse ? `${selectedCourse.course_code} - ${selectedCourse.name}` : ''),
+    [selectedCourse],
+  )
 
   const toggleFileType = (fileType: string) => {
     setSelectedFileTypes((prev) =>
@@ -249,7 +228,7 @@ export function CreateAssignment() {
 
   const handleSave = async () => {
     if (!courseId) {
-      toast.error('Please select a course.')
+      toast.error('Course information is missing. Please go back and open Create Assignment from a course page.')
       return
     }
 
@@ -391,24 +370,15 @@ export function CreateAssignment() {
             <CardContent className='space-y-4'>
               <div className='space-y-2'>
                 <Label htmlFor='subject'>Course</Label>
-                <Select
-                  value={courseId}
-                  onValueChange={setCourseId}
-                  disabled={isLoadingCourses || courses.length === 0}
-                >
-                  <SelectTrigger id='subject'>
-                    <SelectValue placeholder={isLoadingCourses ? 'Loading courses...' : 'Select course'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {courses.map((course) => (
-                      <SelectItem key={course.course_id} value={course.course_id}>
-                        {course.course_code} - {course.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {!isLoadingCourses && courses.length === 0 && (
-                  <p className='text-sm text-red-600'>No courses available. Please create a course first.</p>
+                <Input
+                  id='subject'
+                  value={selectedCourseLabel || 'No course selected'}
+                  readOnly
+                  disabled
+                  className='disabled:opacity-100'
+                />
+                {!selectedCourse && (
+                  <p className='text-sm text-red-600'>Course information is missing. Please go back and create assignment from a course.</p>
                 )}
               </div>
 
@@ -667,7 +637,7 @@ export function CreateAssignment() {
                 />
               </div>
 
-              <div className='space-y-2'>
+              {/* <div className='space-y-2'>
                 <label className='flex items-center gap-2'>
                   <input
                     type='checkbox'
@@ -686,14 +656,14 @@ export function CreateAssignment() {
                   />
                   <span className='text-sm'>Enable AI grading</span>
                 </label>
-              </div>
+              </div> */}
             </CardContent>
           </Card>
 
           <Button
             onClick={handleSave}
             className='w-full'
-            disabled={isSubmitting || isLoadingCourses || courses.length === 0}
+            disabled={isSubmitting || !courseId}
           >
             {isSubmitting ? (
               <>

@@ -864,7 +864,7 @@ export function EditAssignment() {
                   />
                 </div>
 
-                <div className='space-y-2'>
+                {/* <div className='space-y-2'>
                   <label className='flex items-center gap-2'>
                     <input
                       type='checkbox'
@@ -883,7 +883,7 @@ export function EditAssignment() {
                     />
                     <span className='text-sm'>Enable AI grading</span>
                   </label>
-                </div>
+                </div> */}
               </CardContent>
             </Card>
 
