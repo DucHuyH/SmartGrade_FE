@@ -51,7 +51,6 @@ export const getAllCourses = async ({
         if (!response.data || !response.data.data) {
             throw new Error("Invalid response format: missing 'data' field");
         }
-        console.log('Raw response data for courses:', response.data);
         return response.data.data;
     } catch (error) {
         console.error("Error fetching courses:", error);
@@ -150,12 +149,26 @@ export const getCourseStudents = async (courseId: string) => {
         if (!response.data || !response.data.data) {
             throw new Error("Invalid response format: missing 'data' field");
         }
-        else {
-            console.log('Raw response data for course students:', response.data);
-        }
         return response.data?.data ?? response.data;
     } catch (error) {
         console.error(`Error fetching students for course ${courseId}:`, error);
+        throw error;
+    }
+};
+
+export const getCourseStudentGrades = async (courseId?: string) => {
+    try {
+        const response = await axiosInstance.get('/submissions/all/students-grades', {
+            params: courseId ? { courseId } : undefined,
+        });
+
+        if (!response.data || !response.data.data) {
+            throw new Error("Invalid response format: missing 'data' field");
+        }
+
+        return response.data?.data ?? response.data;
+    } catch (error) {
+        console.error(`Error fetching student grades for course ${courseId ?? 'all'}:`, error);
         throw error;
     }
 };

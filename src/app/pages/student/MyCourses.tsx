@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { SearchBar } from '../../components/SearchBar';
-import { AlertTriangle, BookOpen, FileText, Loader2, User } from 'lucide-react';
+import { AlertTriangle, BookOpen, CalendarClock, ChevronDown, Loader2, User } from 'lucide-react';
 import { Link } from 'react-router';
 import { Button } from '../../components/ui/button';
 import { Pagination } from '../../components/ui/pagination';
@@ -13,6 +13,8 @@ import { Assignment } from '../../../model/assignment';
 type CourseAssignmentMeta = {
   totalAssignments: number;
   dueSoonPendingCount: number;
+  overduePendingCount: number;
+  quickSubmitAssignments: Assignment[];
 };
 
 const DUE_SOON_MS = 24 * 60 * 60 * 1000;
@@ -87,9 +89,53 @@ const countDueSoonPendingAssignments = (assignments: Assignment[]) => {
   }, 0);
 };
 
+const countOverduePendingAssignments = (assignments: Assignment[]) => {
+  const now = Date.now();
+
+  return assignments.reduce((count, assignment) => {
+    const dueDate = new Date(assignment.due_date);
+    if (Number.isNaN(dueDate.getTime())) {
+      return count;
+    }
+
+    if (dueDate.getTime() >= now) {
+      return count;
+    }
+
+    return isAssignmentCompleted(assignment) ? count : count + 1;
+  }, 0);
+};
+
+const selectQuickSubmitAssignments = (assignments: Assignment[]) => {
+  const now = Date.now();
+
+  const urgentPending = assignments
+    .filter((assignment) => {
+      const dueDate = new Date(assignment.due_date);
+      if (Number.isNaN(dueDate.getTime())) {
+        return false;
+      }
+
+      if (isAssignmentCompleted(assignment)) {
+        return false;
+      }
+
+      const diffMs = dueDate.getTime() - now;
+      return diffMs <= DUE_SOON_MS;
+    })
+    .sort((a, b) => {
+      const timeA = new Date(a.due_date).getTime();
+      const timeB = new Date(b.due_date).getTime();
+      return timeA - timeB;
+    });
+
+  return urgentPending.slice(0, 3);
+};
+
 export function MyCourses() {
   const [courses, setCourses] = useState<StudentCourseApiItem[]>([]);
   const [assignmentMetaByCourse, setAssignmentMetaByCourse] = useState<Record<string, CourseAssignmentMeta>>({});
+  const [quickSubmitExpandedByCourse, setQuickSubmitExpandedByCourse] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -160,12 +206,14 @@ export function MyCourses() {
             const meta: CourseAssignmentMeta = {
               totalAssignments: result.pagination.totalItems || uniqueAssignments.length,
               dueSoonPendingCount: countDueSoonPendingAssignments(uniqueAssignments),
+              overduePendingCount: countOverduePendingAssignments(uniqueAssignments),
+              quickSubmitAssignments: selectQuickSubmitAssignments(uniqueAssignments),
             };
 
             return [courseId, meta] as const;
           } catch (error) {
             console.error(`Error fetching assignments for course ${courseId}:`, error);
-            return [courseId, { totalAssignments: 0, dueSoonPendingCount: 0 }] as const;
+            return [courseId, { totalAssignments: 0, dueSoonPendingCount: 0, overduePendingCount: 0, quickSubmitAssignments: [] }] as const;
           }
         }),
       );
@@ -185,6 +233,13 @@ export function MyCourses() {
   const filteredCourses = useMemo(() => {
     return courses;
   }, [courses]);
+
+  const toggleQuickSubmit = (courseId: string) => {
+    setQuickSubmitExpandedByCourse((prev) => ({
+      ...prev,
+      [courseId]: !prev[courseId],
+    }));
+  };
 
   return (
     <div className="space-y-6">
@@ -219,9 +274,9 @@ export function MyCourses() {
         className="max-w-md"
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {isLoading ? (
-          <Card className="lg:col-span-2">
+          <Card>
             <CardContent className="py-12">
               <div className="flex items-center justify-center gap-2 text-gray-500">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -253,21 +308,86 @@ export function MyCourses() {
                 </div>
               </div>
 
-
-              <div className="flex flex-wrap items-center gap-2 text-sm">
-                <div className="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 text-gray-700">
-                  <FileText className="h-4 w-4" />
-                  <span>{assignmentMetaByCourse[String(course.course_id)]?.totalAssignments ?? 0} assignments</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="text-xs text-slate-600">Assignments</p>
+                  <p className="text-xl font-semibold text-slate-900">{assignmentMetaByCourse[String(course.course_id)]?.totalAssignments ?? 0}</p>
                 </div>
-                {(assignmentMetaByCourse[String(course.course_id)]?.dueSoonPendingCount ?? 0) > 0 && (
-                  <div className="inline-flex items-center gap-1.5 rounded-md bg-red-100 px-2 py-1 text-red-700">
-                    <AlertTriangle className="h-4 w-4" />
-                    <span>
-                      Urgent: {assignmentMetaByCourse[String(course.course_id)]?.dueSoonPendingCount} pending assignment{(assignmentMetaByCourse[String(course.course_id)]?.dueSoonPendingCount ?? 0) > 1 ? 's' : ''} due within 24 hours. Submit now.
-                    </span>
-                  </div>
-                )}
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-xs text-amber-700">Due &lt; 24h</p>
+                  <p className="text-xl font-semibold text-amber-700">{assignmentMetaByCourse[String(course.course_id)]?.dueSoonPendingCount ?? 0}</p>
+                </div>
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2">
+                  <p className="text-xs text-red-700">Overdue</p>
+                  <p className="text-xl font-semibold text-red-700">{assignmentMetaByCourse[String(course.course_id)]?.overduePendingCount ?? 0}</p>
+                </div>
               </div>
+
+              {(assignmentMetaByCourse[String(course.course_id)]?.quickSubmitAssignments.length ?? 0) > 0 && (
+                <div className="rounded-md border border-red-200 bg-red-50/50 p-3 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleQuickSubmit(String(course.course_id))}
+                    className="flex w-full items-center justify-between rounded-md border border-red-200 bg-white px-3 py-2 text-left"
+                  >
+                    <div className="flex items-center gap-2 text-sm font-medium text-red-700">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span>
+                        Quick submit (urgent) - {assignmentMetaByCourse[String(course.course_id)]?.quickSubmitAssignments.length ?? 0}
+                      </span>
+                    </div>
+                    <ChevronDown
+                      className={`h-4 w-4 text-red-700 transition-transform ${quickSubmitExpandedByCourse[String(course.course_id)] ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+
+                  {quickSubmitExpandedByCourse[String(course.course_id)] && (
+                    <div className="space-y-2">
+                      {assignmentMetaByCourse[String(course.course_id)]?.quickSubmitAssignments.map((assignment) => {
+                        const dueDate = new Date(assignment.due_date);
+                        const isOverdue = !Number.isNaN(dueDate.getTime()) && dueDate.getTime() < Date.now();
+
+                        return (
+                          <div
+                            key={assignment.assignment_id}
+                            className="flex flex-col gap-2 rounded-md border border-red-100 bg-white p-2 sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-slate-900">{assignment.title}</p>
+                              <p className="flex items-center gap-1 text-xs text-slate-600">
+                                <CalendarClock className="h-3.5 w-3.5" />
+                                {Number.isNaN(dueDate.getTime())
+                                  ? 'Due: N/A'
+                                  : `Due: ${dueDate.toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}`}
+                              </p>
+                            </div>
+
+                            <Link
+                              to={`/student/submit/${assignment.assignment_id}`}
+                              state={{
+                                assignment,
+                                courseName: course.name,
+                                courseCode: course.course_code,
+                                backPath: '/student/courses',
+                              }}
+                              className="sm:w-auto"
+                            >
+                              <Button size="sm" className={isOverdue ? 'w-full bg-red-600 hover:bg-red-700 sm:w-auto' : 'w-full sm:w-auto'}>
+                                {isOverdue ? 'Submit Now (Overdue)' : 'Submit Now'}
+                              </Button>
+                            </Link>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
 
 

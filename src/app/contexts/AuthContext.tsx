@@ -24,7 +24,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string, role: 'lecturer' | 'student'): Promise<boolean> => {
     const response = await lectureLogin(email, password)
-    console.log('authContext:', response)
 
     if (response.data.success) {
       const user: User = {

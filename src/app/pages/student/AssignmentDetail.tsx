@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Separator } from '../../components/ui/separator';
 import { Breadcrumb } from '../../components/Breadcrumb';
-import { Calendar, Clock, FileText, AlertCircle, Loader2 } from 'lucide-react';
+import { Calendar, Clock, FileText, AlertCircle, Loader2, Download } from 'lucide-react';
 import { toast } from 'react-toastify';
 import type { Assignment } from '../../../model/assignment';
 import { getAssignmentDetails } from '../../services/student/assignmentService';
@@ -46,6 +46,41 @@ const getDaysLeft = (dueDate?: string) => {
 
   const diffMs = due.getTime() - Date.now();
   return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+};
+
+const resolveFileUrl = (value?: string) => {
+  if (!value) {
+    return '';
+  }
+
+  const normalized = value.trim().replace(/\\/g, '/');
+  if (!normalized) {
+    return '';
+  }
+
+  if (/^https?:\/\//i.test(normalized)) {
+    return normalized;
+  }
+
+  if (normalized.startsWith('//')) {
+    return `${window.location.protocol}${normalized}`;
+  }
+
+  if (normalized.startsWith('/')) {
+    return `${window.location.origin}${normalized}`;
+  }
+
+  return `${window.location.origin}/${normalized}`;
+};
+
+const getFileNameFromUrl = (url: string) => {
+  try {
+    const urlObj = new URL(url);
+    const fileName = urlObj.pathname.split('/').pop();
+    return fileName || 'question-file';
+  } catch {
+    return 'question-file';
+  }
 };
 
 const normalizeAllowedFileTypes = (value: unknown): string[] => {
@@ -157,6 +192,10 @@ export function AssignmentDetail() {
     () => normalizeAllowedFileTypes(assignment?.allowed_file_types),
     [assignment?.allowed_file_types]
   );
+  const questionFileUrl = useMemo(
+    () => resolveFileUrl(assignment?.question_file_url ?? assignment?.question_file),
+    [assignment?.question_file_url, assignment?.question_file]
+  );
 
   // Build breadcrumb items
   const breadcrumbItems = [];
@@ -247,6 +286,35 @@ export function AssignmentDetail() {
                   <li className="text-sm text-gray-600">No requirements provided.</li>
                 )}
               </ul>
+            </CardContent>
+          </Card>
+
+          <Card className={questionFileUrl ? 'border-emerald-300 bg-emerald-50/50 shadow-sm' : undefined}>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle>Question File</CardTitle>
+                {questionFileUrl ? (
+                  <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">File Available</Badge>
+                ) : null}
+              </div>
+              <CardDescription>
+                {questionFileUrl ? 'Please review and download before submission.' : 'Download file attached by lecturer.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {questionFileUrl ? (
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-md border p-3">
+                  <div className="text-sm text-gray-700 break-all">{getFileNameFromUrl(questionFileUrl)}</div>
+                  <Button asChild variant="outline" className="w-full sm:w-auto">
+                    <a href={questionFileUrl} target="_blank" rel="noopener noreferrer" download>
+                      <Download className="h-4 w-4" />
+                      Download File
+                    </a>
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-600">No question file attached.</p>
+              )}
             </CardContent>
           </Card>
 

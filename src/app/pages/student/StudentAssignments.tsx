@@ -6,7 +6,8 @@ import { Badge } from '../../components/ui/badge';
 import { Breadcrumb } from '../../components/Breadcrumb';
 import { SearchBar } from '../../components/SearchBar';
 import { Pagination } from '../../components/ui/pagination';
-import { Calendar, Clock, FileText, Loader2 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '../../components/ui/tabs';
+import { Calendar, FileText, Loader2, CheckCircle2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { Assignment } from '../../../model/assignment';
 import { getAssignmentsForCourse } from '../../services/student/assignmentService';
@@ -102,6 +103,7 @@ export function StudentAssignments() {
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
     const [isLoadingCourse, setIsLoadingCourse] = useState(false);
     const [isLoadingAssignments, setIsLoadingAssignments] = useState(false);
+    const [activeTab, setActiveTab] = useState<'pending' | 'submitted'>('pending');
     const [pagination, setPagination] = useState<PaginationState>(DEFAULT_PAGINATION);
 
     useEffect(() => {
@@ -182,6 +184,10 @@ export function StudentAssignments() {
         { label: course?.name ?? navState?.courseName ?? 'Assignments' },
     ];
 
+    const pendingAssignments = assignments.filter((assignment) => !assignment.has_submitted);
+    const submittedAssignments = assignments.filter((assignment) => assignment.has_submitted);
+    const visibleAssignments = activeTab === 'submitted' ? submittedAssignments : pendingAssignments;
+
     return (
         <div className="space-y-6">
             <Breadcrumb items={breadcrumbItems} />
@@ -191,7 +197,7 @@ export function StudentAssignments() {
                 <p className="text-sm text-gray-600">{course?.course_code ?? navState?.courseCode ?? course_id}</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Card>
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm">Total Assignments</CardTitle>
@@ -208,7 +214,7 @@ export function StudentAssignments() {
                         <div className="text-2xl text-blue-600">{pagination.currentPage}</div>
                     </CardContent>
                 </Card>
-            </div>
+            </div> */}
 
             <SearchBar
                 value={searchQuery}
@@ -217,15 +223,76 @@ export function StudentAssignments() {
                 className="max-w-md"
             />
 
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pending' | 'submitted')}>
+                <TabsList>
+                    <TabsTrigger value="pending">Not Submitted ({pendingAssignments.length})</TabsTrigger>
+                    <TabsTrigger value="submitted">Submitted ({submittedAssignments.length})</TabsTrigger>
+                </TabsList>
+            </Tabs>
+
             <div className="grid grid-cols-1 gap-6">
                 {isLoadingAssignments || isLoadingCourse ? (
                     <div className="py-20 flex flex-col items-center justify-center gap-4">
                         <Loader2 className="h-10 w-10 animate-spin text-primary" />
                         <p className="text-black font-semibold text-lg">Loading assignments...</p>
                     </div>
-                ) : assignments.length > 0 ? (
-                    assignments.map((assignment) => {
+                ) : visibleAssignments.length > 0 ? (
+                    visibleAssignments.map((assignment) => {
                         const dueMeta = getDueMeta(assignment.due_date);
+
+                        if (assignment.has_submitted) {
+                            return (
+                                <Card key={assignment.assignment_id} className="border-emerald-200 bg-emerald-50/40 hover:shadow-md transition-shadow">
+                                    <CardHeader>
+                                        <div className="flex justify-between items-start gap-3">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                                                    <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Submitted</Badge>
+                                                </div>
+                                                <CardTitle>{assignment.title}</CardTitle>
+                                                <CardDescription className="flex flex-wrap items-center gap-4 mt-2">
+                                                    <span className="flex items-center gap-1">
+                                                        <Calendar className="h-4 w-4" />
+                                                        Submitted:{' '}
+                                                        {assignment.submission_submitted_at
+                                                            ? new Date(assignment.submission_submitted_at).toLocaleString('en-US', {
+                                                                month: 'short',
+                                                                day: 'numeric',
+                                                                year: 'numeric',
+                                                                hour: '2-digit',
+                                                                minute: '2-digit',
+                                                            })
+                                                            : 'N/A'}
+                                                    </span>
+                                                    <span className="flex items-center gap-1">
+                                                        <FileText className="h-4 w-4" />
+                                                        Attempt: {assignment.submission_attempt_count ?? 1}
+                                                    </span>
+                                                </CardDescription>
+                                            </div>
+                                            <Badge className={dueMeta.className}>{dueMeta.text}</Badge>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <p className="text-sm text-gray-600 line-clamp-2">
+                                            {assignment.description || 'No description provided.'}
+                                        </p>
+
+                                        <Link
+                                            to={`/student/courses/${course_id}/assignments/${assignment.assignment_id}`}
+                                            state={{
+                                                courseName: course?.name ?? navState?.courseName,
+                                                courseCode: course?.course_code ?? navState?.courseCode,
+                                            }}
+                                            className="block"
+                                        >
+                                            <Button className="w-full">View Grade and Feedback</Button>
+                                        </Link>
+                                    </CardContent>
+                                </Card>
+                            );
+                        }
 
                         return (
                             <Card key={assignment.assignment_id} className="hover:shadow-md transition-shadow">
@@ -262,22 +329,14 @@ export function StudentAssignments() {
                                     </p>
 
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-gray-600">
-                                        {/* <div>
-                                            <span className="text-gray-500">Allow Late:</span>{' '}
-                                            {assignment.allow_late_submissions ? 'Yes' : 'No'}
-                                        </div>
                                         <div>
-                                            <span className="text-gray-500">AI Grading:</span>{' '}
-                                            {assignment.enable_ai_grading ? 'Enabled' : 'Disabled'}
-                                        </div> */}
-                                        {/* <div>
                                             <span className="text-gray-500">File Size:</span>{' '}
                                             {assignment.max_file_size_mb}MB
                                         </div>
-                                        <div className="flex items-center gap-1">
-                                            <Clock className="h-4 w-4" />
-                                            <span>{normalizeAllowedFileTypes(assignment.allowed_file_types)}</span>
-                                        </div> */}
+                                        <div>
+                                            <span className="text-gray-500">Types:</span>{' '}
+                                            {normalizeAllowedFileTypes(assignment.allowed_file_types)}
+                                        </div>
                                     </div>
 
                                     <div className="flex gap-2">
@@ -312,7 +371,9 @@ export function StudentAssignments() {
                     <div className="text-center py-12 text-gray-500">
                         {debouncedSearchQuery
                             ? `No assignments found matching "${searchQuery}"`
-                            : 'No assignments available for this course.'}
+                            : activeTab === 'submitted'
+                                ? 'No submitted assignments yet.'
+                                : 'No pending assignments available for this course.'}
                     </div>
                 )}
             </div>

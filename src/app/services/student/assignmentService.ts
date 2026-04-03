@@ -13,6 +13,20 @@ export type GetStudentAssignmentsResult = {
     pagination: StudentAssignmentPagination;
 };
 
+export type StudentSubmission = {
+    submission_id: number;
+    assignment_id: number;
+    student_id: number;
+    attempt_count: number;
+    submitted_at: string;
+    file_url?: string;
+};
+
+export type SubmitAssignmentResult = {
+    message: string;
+    submission: StudentSubmission;
+};
+
 const parseAssignmentListPayload = (payload: unknown): Assignment[] => {
     const root = (payload as Record<string, unknown>) ?? {};
     const nested = (root.data as Record<string, unknown> | undefined) ?? {};
@@ -72,6 +86,8 @@ export const getAssignmentsForCourse = async (
         const assignments = parseAssignmentListPayload(payload);
         const pagination = parsePagination(payload, limit);
 
+        console.log(payload);
+
         return {
             assignments,
             pagination: {
@@ -109,17 +125,59 @@ export const getAssignmentDetails = async (assignmentId: string): Promise<Assign
             throw new Error('Invalid assignment detail format');
         }
 
+        console.log('Raw assignment detail response:', response.data);
+
         const rubricRecord =
             assignmentContainer?.rubric ??
             root?.rubric ??
             null;
 
+        const normalizedQuestionFileUrl =
+            (typeof assignmentRecord?.question_file_url === 'string' && assignmentRecord.question_file_url) ||
+            (typeof assignmentRecord?.question_file === 'string' && assignmentRecord.question_file) ||
+            undefined;
+
+    
+
         return {
             ...(assignmentRecord as unknown as Assignment),
+            question_file_url: normalizedQuestionFileUrl,
             rubric: rubricRecord as Assignment['rubric'],
         };
     } catch (error) {
         console.error(`Error fetching details for assignment ${assignmentId}:`, error);
+        throw error;
+    }
+};
+
+export const submitAssignmentFile = async (
+    assignmentId: string,
+    file: File
+): Promise<SubmitAssignmentResult> => {
+    try {
+        const formData = new FormData();
+        formData.append('submission_file', file);
+
+        const response = await axiosInstance.post(`/submissions/${assignmentId}`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+
+        const payload = (response.data?.data as Record<string, unknown> | undefined) ?? {};
+        const submission = (payload.submission as StudentSubmission | undefined) ?? undefined;
+        const message = typeof payload.message === 'string' ? payload.message : 'Submission created successfully.';
+
+        if (!submission) {
+            throw new Error('Invalid response format: missing submission data');
+        }
+
+        return {
+            message,
+            submission,
+        };
+    } catch (error) {
+        console.error(`Error submitting assignment ${assignmentId}:`, error);
         throw error;
     }
 };

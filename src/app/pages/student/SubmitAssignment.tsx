@@ -2,12 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link, useLocation } from 'react-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
-import { Label } from '../../components/ui/label';
-import { Textarea } from '../../components/ui/textarea';
-import { Upload, FileText, CheckCircle, X, Loader2 } from 'lucide-react';
+import { Badge } from '../../components/ui/badge';
+import { Upload, FileText, CheckCircle, X, Loader2, ArrowLeft, CalendarClock, Award, HardDrive, FileType2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import type { Assignment } from '../../../model/assignment';
-import { getAssignmentDetails } from '../../services/student/assignmentService';
+import { getAssignmentDetails, submitAssignmentFile } from '../../services/student/assignmentService';
 
 type SubmitAssignmentNavState = {
     assignment?: Assignment;
@@ -83,6 +82,67 @@ const buildAcceptedExtensions = (allowedFileTypes: string[]): string => {
     return Array.from(new Set(extensions)).join(',');
 };
 
+const getDeadlineMeta = (dueDate?: string) => {
+    if (!dueDate) {
+        return {
+            text: 'No deadline',
+            tone: 'bg-gray-100 text-gray-700',
+        };
+    }
+
+    const due = new Date(dueDate);
+    if (Number.isNaN(due.getTime())) {
+        return {
+            text: 'Invalid deadline',
+            tone: 'bg-gray-100 text-gray-700',
+        };
+    }
+
+    const diffMs = due.getTime() - Date.now();
+    if (diffMs <= 0) {
+        return {
+            text: 'Overdue',
+            tone: 'bg-red-100 text-red-700',
+        };
+    }
+
+    const totalHoursLeft = Math.ceil(diffMs / (1000 * 60 * 60));
+    const days = Math.floor(totalHoursLeft / 24);
+    const hours = totalHoursLeft % 24;
+
+    if (totalHoursLeft <= 24) {
+        return {
+            text: `${totalHoursLeft}h left`,
+            tone: 'bg-red-100 text-red-700',
+        };
+    }
+
+    if (totalHoursLeft <= 72) {
+        return {
+            text: `${days}d ${hours}h left`,
+            tone: 'bg-amber-100 text-amber-700',
+        };
+    }
+
+    return {
+        text: `${days}d ${hours}h left`,
+        tone: 'bg-emerald-100 text-emerald-700',
+    };
+};
+
+const hasDeadlinePassed = (dueDate?: string) => {
+    if (!dueDate) {
+        return false;
+    }
+
+    const due = new Date(dueDate);
+    if (Number.isNaN(due.getTime())) {
+        return false;
+    }
+
+    return due.getTime() <= Date.now();
+};
+
 export function SubmitAssignment() {
     const { assignment_id, id } = useParams();
     const location = useLocation();
@@ -93,7 +153,6 @@ export function SubmitAssignment() {
     const [assignment, setAssignment] = useState<Assignment | null>(null);
     const [isLoadingAssignment, setIsLoadingAssignment] = useState<boolean>(false);
     const [file, setFile] = useState<File | null>(null);
-    const [comments, setComments] = useState('');
     const [submitted, setSubmitted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -102,9 +161,11 @@ export function SubmitAssignment() {
         [assignment?.allowed_file_types]
     );
     const acceptedExtensions = useMemo(() => buildAcceptedExtensions(allowedFileTypes), [allowedFileTypes]);
+    const deadlineMeta = useMemo(() => getDeadlineMeta(assignment?.due_date), [assignment?.due_date]);
+    const isOverdue = useMemo(() => hasDeadlinePassed(assignment?.due_date), [assignment?.due_date]);
 
     const courseDisplay = [navState?.courseCode, navState?.courseName].filter(Boolean).join(' • ');
-    const backPath = navState?.backPath ?? '/student/assignments';
+    const backPath = navState?.backPath ?? '/student/courses';
 
     useEffect(() => {
         if (!resolvedAssignmentId) {
@@ -183,18 +244,23 @@ export function SubmitAssignment() {
     };
 
     const handleSubmit = async () => {
+        if (isOverdue) {
+            toast.error('Submission is closed because this assignment is overdue.');
+            return;
+        }
+
         if (!file) {
             return;
         }
 
         setIsSubmitting(true);
         try {
-            // Submit API is not available yet in student service, keep UX flow ready.
-            await new Promise((resolve) => window.setTimeout(resolve, 700));
+            const result = await submitAssignmentFile(resolvedAssignmentId, file);
+            toast.success(result.message || 'Assignment submitted successfully.');
             setSubmitted(true);
-            window.setTimeout(() => {
-                navigate(backPath);
-            }, 2000);
+        } catch (error) {
+            console.error('Failed to submit assignment:', error);
+            toast.error('Failed to submit assignment. Please try again.');
         } finally {
             setIsSubmitting(false);
         }
@@ -206,36 +272,75 @@ export function SubmitAssignment() {
 
     return (
         <div className="space-y-6 max-w-3xl mx-auto">
-            <div>
-                <h2>Submit Assignment</h2>
-                <p className="text-sm text-gray-600">{assignment.title}</p>
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <h2>Submit Assignment</h2>
+                    <p className="text-sm text-gray-600">{assignment.title}</p>
+                </div>
+                <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate(backPath)}
+                    className="shrink-0"
+                >
+                    <ArrowLeft className="h-4 w-4" />
+                    Back
+                </Button>
             </div>
 
             {!submitted ? (
                 <>
-                    <Card>
+                    <Card className="border-slate-200">
                         <CardHeader>
-                            <CardTitle>Assignment Information</CardTitle>
-                            <CardDescription>
-                                {courseDisplay || assignment.course_id} • Due: {formatDate(assignment.due_date)}
-                            </CardDescription>
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <CardTitle>Assignment Information</CardTitle>
+                                    <CardDescription>{courseDisplay || assignment.course_id}</CardDescription>
+                                </div>
+                                <Badge className={deadlineMeta.tone}>{deadlineMeta.text}</Badge>
+                            </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className="p-4 bg-blue-50 rounded-lg text-sm text-blue-700">
+                            <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-700">
                                 <p>Please ensure your submission meets all requirements before uploading.</p>
                             </div>
+
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-gray-700">
-                                <div>
-                                    <span className="text-gray-500">Total Points:</span> {assignment.max_score ?? 0}
+                                <div className="rounded-md border border-slate-200 p-3">
+                                    <div className="mb-1 flex items-center gap-2 text-gray-500">
+                                        <CalendarClock className="h-4 w-4" />
+                                        <span>Due Date</span>
+                                    </div>
+                                    <div className="font-medium text-gray-900">{formatDate(assignment.due_date)}</div>
                                 </div>
-                                <div>
-                                    <span className="text-gray-500">Max File Size:</span>{' '}
-                                    {assignment.max_file_size_mb ? `${assignment.max_file_size_mb} MB` : 'N/A'}
+
+                                <div className="rounded-md border border-slate-200 p-3">
+                                    <div className="mb-1 flex items-center gap-2 text-gray-500">
+                                        <Award className="h-4 w-4" />
+                                        <span>Total Points</span>
+                                    </div>
+                                    <div className="font-medium text-gray-900">{assignment.max_score ?? 0} points</div>
                                 </div>
-                            </div>
-                            <div className="text-sm text-gray-700">
-                                <span className="text-gray-500">Allowed File Types:</span>{' '}
-                                {allowedFileTypes.length > 0 ? allowedFileTypes.join(', ') : 'N/A'}
+
+                                <div className="rounded-md border border-slate-200 p-3">
+                                    <div className="mb-1 flex items-center gap-2 text-gray-500">
+                                        <HardDrive className="h-4 w-4" />
+                                        <span>Max File Size</span>
+                                    </div>
+                                    <div className="font-medium text-gray-900">
+                                        {assignment.max_file_size_mb ? `${assignment.max_file_size_mb} MB` : 'N/A'}
+                                    </div>
+                                </div>
+
+                                <div className="rounded-md border border-slate-200 p-3">
+                                    <div className="mb-1 flex items-center gap-2 text-gray-500">
+                                        <FileType2 className="h-4 w-4" />
+                                        <span>Allowed Types</span>
+                                    </div>
+                                    <div className="font-medium text-gray-900">
+                                        {allowedFileTypes.length > 0 ? allowedFileTypes.join(', ') : 'N/A'}
+                                    </div>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
@@ -246,6 +351,12 @@ export function SubmitAssignment() {
                             <CardDescription>Select your assignment file to upload</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                            {isOverdue ? (
+                                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                                    Submission is closed. You have passed the deadline for this assignment.
+                                </div>
+                            ) : null}
+
                             {!file ? (
                                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center hover:border-primary transition-colors">
                                     <input
@@ -253,9 +364,10 @@ export function SubmitAssignment() {
                                         type="file"
                                         accept={acceptedExtensions}
                                         onChange={handleFileChange}
+                                        disabled={isOverdue}
                                         className="hidden"
                                     />
-                                    <label htmlFor="file-upload" className="cursor-pointer">
+                                    <label htmlFor="file-upload" className={isOverdue ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}>
                                         <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
                                         <p className="text-sm text-gray-600 mb-1">
                                             Click to upload or drag and drop
@@ -289,25 +401,10 @@ export function SubmitAssignment() {
                         </CardContent>
                     </Card>
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Comments (Optional)</CardTitle>
-                            <CardDescription>Add any notes or comments for your lecturer</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Textarea
-                                placeholder="Enter any additional comments..."
-                                value={comments}
-                                onChange={(e) => setComments(e.target.value)}
-                                rows={5}
-                            />
-                        </CardContent>
-                    </Card>
-
                     <div className="flex gap-3">
-                        <Button onClick={handleSubmit} disabled={!file || isSubmitting} className="flex-1">
+                        <Button onClick={handleSubmit} disabled={!file || isSubmitting || isOverdue} className="flex-1">
                             {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                            {isSubmitting ? 'Submitting...' : 'Submit Assignment'}
+                            {isSubmitting ? 'Submitting...' : isOverdue ? 'Overdue - Cannot Submit' : 'Submit Assignment'}
                         </Button>
                         <Link to={backPath} className="flex-1">
                             <Button variant="outline" className="w-full">
@@ -330,9 +427,6 @@ export function SubmitAssignment() {
                                 <p className="text-sm text-green-700">
                                     Your assignment has been submitted and will be reviewed by your lecturer.
                                 </p>
-                            </div>
-                            <div className="pt-4">
-                                <p className="text-xs text-green-600">Redirecting to assignments...</p>
                             </div>
                         </div>
                     </CardContent>

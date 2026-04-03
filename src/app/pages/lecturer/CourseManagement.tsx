@@ -9,9 +9,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Pagination } from '../../components/ui/pagination';
 import { SearchBar } from '../../components/SearchBar';
-import { Plus, Users, FileText, Filter, Loader2, MoreVertical } from 'lucide-react';
+import { Plus, Filter, Loader2, MoreVertical, ChevronDown, Calendar } from 'lucide-react';
 import { Course } from '../../../model';
-import { getAllCourses, createCourse, updateCourse, deleteCourse } from '../../services/lecturer/courseService';
+import { getAllCourses, createCourse, updateCourse, deleteCourse, getCourseStudents } from '../../services/lecturer/courseService';
+import { getAssignmentsForCourse } from '../../services/lecturer/assignmentService';
 import { getCurrentUser } from '../../services/lecturer/authService';
 import { toast } from 'react-toastify';
 
@@ -61,6 +62,13 @@ export function CourseManagement() {
   const [editAcademicYear, setEditAcademicYear] = useState(ACADEMIC_YEARS[0]);
   const actionMenuRef = useRef<HTMLDivElement | null>(null);
 
+  // Expand/Collapse state for course preview
+  const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null);
+  const [courseAssignments, setCourseAssignments] = useState<Record<string, any[]>>({});
+  const [assignmentCounts, setAssignmentCounts] = useState<Record<string, number>>({});
+  const [studentCounts, setStudentCounts] = useState<Record<string, number>>({});
+  const [isLoadingAssignments, setIsLoadingAssignments] = useState<Record<string, boolean>>({});
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -94,6 +102,105 @@ export function CourseManagement() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const normalizeAssignments = (response: any): any[] => {
+    if (Array.isArray(response)) {
+      return response;
+    }
+
+    if (Array.isArray(response?.data?.course)) {
+      return response.data.course;
+    }
+
+    if (Array.isArray(response?.course)) {
+      return response.course;
+    }
+
+    return [];
+  };
+
+  const extractAssignmentCount = (response: any): number => {
+    const totalItems = response?.data?.pagination?.totalItems ?? response?.pagination?.totalItems;
+
+    if (typeof totalItems === 'number') {
+      return totalItems;
+    }
+
+    return normalizeAssignments(response).length;
+  };
+
+  const preloadAssignmentCounts = async (courseData: Course[]) => {
+    if (!courseData.length) {
+      setAssignmentCounts({});
+      return;
+    }
+
+    const countEntries = await Promise.all(
+      courseData.map(async (course) => {
+        try {
+          // limit=1 is enough if API returns totalItems in pagination
+          const response = await getAssignmentsForCourse(course.course_id, 1, 1);
+          return [course.course_id, extractAssignmentCount(response)] as const;
+        } catch (error) {
+          console.error(`Error preloading assignment count for ${course.course_id}:`, error);
+          return [course.course_id, 0] as const;
+        }
+      })
+    );
+
+    setAssignmentCounts((prev) => ({
+      ...prev,
+      ...Object.fromEntries(countEntries),
+    }));
+  };
+
+  const extractStudentCount = (response: any): number => {
+    if (typeof response?.data?.pagination?.totalItems === 'number') {
+      return response.data.pagination.totalItems;
+    }
+
+    if (typeof response?.pagination?.totalItems === 'number') {
+      return response.pagination.totalItems;
+    }
+
+    if (Array.isArray(response?.data?.students)) {
+      return response.data.students.length;
+    }
+
+    if (Array.isArray(response?.students)) {
+      return response.students.length;
+    }
+
+    if (Array.isArray(response)) {
+      return response.length;
+    }
+
+    return 0;
+  };
+
+  const preloadStudentCounts = async (courseData: Course[]) => {
+    if (!courseData.length) {
+      setStudentCounts({});
+      return;
+    }
+
+    const countEntries = await Promise.all(
+      courseData.map(async (course) => {
+        try {
+          const response = await getCourseStudents(course.course_id);
+          return [course.course_id, extractStudentCount(response)] as const;
+        } catch (error) {
+          console.error(`Error preloading student count for ${course.course_id}:`, error);
+          return [course.course_id, 0] as const;
+        }
+      })
+    );
+
+    setStudentCounts((prev) => ({
+      ...prev,
+      ...Object.fromEntries(countEntries),
+    }));
+  };
+
   const fetchCourses = async () => {
     setIsLoadingCourses(true);
     try {
@@ -106,9 +213,10 @@ export function CourseManagement() {
       if (response.success) {
         const courseData = response.data?.course ?? [];
         const paginationData = response.data?.pagination;
-        // console.log('Fetched courses:', courseData);
 
         setCourses(courseData);
+        void preloadAssignmentCounts(courseData);
+        void preloadStudentCounts(courseData);
         setTotalItems(paginationData?.totalItems ?? 0);
         setTotalPages(paginationData?.totalPages ?? 1);
         setLimit(paginationData?.limit ?? 6);
@@ -129,6 +237,42 @@ export function CourseManagement() {
     }
   };
 
+  const toggleCourseExpanded = async (courseId: string) => {
+    if (expandedCourseId === courseId) {
+      // Collapse
+      setExpandedCourseId(null);
+    } else {
+      // Expand - fetch assignments if not already loaded
+      setExpandedCourseId(courseId);
+
+      if (!courseAssignments[courseId]) {
+        try {
+          setIsLoadingAssignments((prev) => ({ ...prev, [courseId]: true }));
+          const response = await getAssignmentsForCourse(courseId);
+
+          const assignments = normalizeAssignments(response);
+
+          setCourseAssignments((prev) => ({
+            ...prev,
+            [courseId]: assignments,
+          }));
+
+          setAssignmentCounts((prev) => ({
+            ...prev,
+            [courseId]: extractAssignmentCount(response),
+          }));
+        } catch (error) {
+          console.error('Error fetching assignments:', error);
+          setCourseAssignments((prev) => ({
+            ...prev,
+            [courseId]: [],
+          }));
+        } finally {
+          setIsLoadingAssignments((prev) => ({ ...prev, [courseId]: false }));
+        }
+      }
+    }
+  };
 
   const validateForm = () => {
     const newErrors: FormErrors = {};
@@ -318,7 +462,7 @@ export function CourseManagement() {
                 />
                 {errors.courseCode && <p className="text-sm text-red-600">{errors.courseCode}</p>}
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="semester">Chọn học kỳ</Label>
                 <Select
@@ -506,7 +650,7 @@ export function CourseManagement() {
           <p className="text-black font-semibold text-lg">Loading courses...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6">
           {courses.map((course) => (
             <Card key={course.course_id} className="hover:shadow-md transition-shadow">
               <CardHeader>
@@ -550,15 +694,68 @@ export function CourseManagement() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Users className="h-4 w-4" />
-                    {/* <span>{course.students} Students</span> */}
+                <div className="space-y-4">
+                  {/* Summary Stats */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <button
+                      onClick={() => toggleCourseExpanded(course.course_id)}
+                      className="w-full flex items-center justify-between p-3 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-100 transition-colors"
+                    >
+                      <div className="text-left">
+                        <p className="text-xs text-gray-600 font-medium">Assignments</p>
+                        <p className="text-2xl font-bold text-blue-600">
+                          {assignmentCounts[course.course_id] ?? '-'}
+                        </p>
+                      </div>
+                      <ChevronDown
+                        className={`h-4 w-4 transition-transform duration-200 ${expandedCourseId === course.course_id ? 'rotate-180' : ''
+                          }`}
+                      />
+                    </button>
+
+                    <div className="w-full p-3 bg-emerald-50 rounded-lg border border-emerald-100">
+                      <div className="text-left">
+                        <p className="text-xs text-gray-600 font-medium">Students</p>
+                        <p className="text-2xl font-bold text-emerald-600">
+                          {studentCounts[course.course_id] ?? '-'}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <FileText className="h-4 w-4" />
-                    {/* <span>{course.assignments} Assignments</span> */}
-                  </div>
+
+                  {/* Expanded Content */}
+                  {expandedCourseId === course.course_id && (
+                    <div className="border-t pt-4 space-y-3">
+                      {isLoadingAssignments[course.course_id] ? (
+                        <div className="flex items-center justify-center py-6">
+                          <Loader2 className="h-4 w-4 animate-spin text-primary mr-2" />
+                          <span className="text-sm text-gray-600">Loading assignments...</span>
+                        </div>
+                      ) : courseAssignments[course.course_id] && courseAssignments[course.course_id].length > 0 ? (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          <p className="text-xs font-semibold text-gray-700 uppercase">Recent Assignments</p>
+                          {courseAssignments[course.course_id].slice(0, 5).map((assignment) => (
+                            <div
+                              key={assignment.assignment_id}
+                              className="bg-gray-50 p-3 rounded border border-gray-200 hover:border-blue-300 transition-colors"
+                            >
+                              <p className="text-sm font-medium text-gray-900 truncate">{assignment.title}</p>
+                              <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                                <Calendar className="h-3 w-3" />
+                                <span>
+                                  Due: {assignment.due_date ? new Date(assignment.due_date).toLocaleDateString('vi-VN') : 'N/A'}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 text-center py-4">No assignments yet</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
                   <div className="flex gap-2 pt-3">
                     <Link to={`/lecturer/courses/${course.course_id}/assignments`} className="flex-1">
                       <Button variant="outline" className="w-full">

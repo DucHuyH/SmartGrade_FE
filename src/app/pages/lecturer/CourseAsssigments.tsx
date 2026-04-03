@@ -337,6 +337,11 @@ export function CourseAssignments() {
                 ) : (
                     assignments.map((assignment) => {
                         const status = getAssignmentStatus(assignment);
+                        const submissionCount = assignment.submission_count ?? assignment.submitted_count ?? 0;
+                        const gradedCount = assignment.graded_count ?? 0;
+                        const enrolledCount = assignment.enrolled_count ?? 0;
+                        const pendingCount = Math.max(submissionCount - gradedCount, 0);
+
                         return (
                             <Card key={assignment.assignment_id} className="hover:shadow-md transition-shadow">
                                 <CardHeader>
@@ -405,21 +410,35 @@ export function CourseAssignments() {
                                 <CardContent>
                                     {/* Progress Stats */}
                                     <div className="grid grid-cols-3 gap-4 mb-4">
-                                        <div className="text-center p-3 bg-blue-50 rounded">
-                                            <div className="text-2xl text-blue-600">{assignment?.submitted_count || 0}</div>
-                                            <div className="text-xs text-gray-600">Submitted</div>
-                                        </div>
-                                        <div className="text-center p-3 bg-green-50 rounded">
-                                            <div className="text-2xl text-green-600">{assignment?.graded_count || 0}</div>
-                                            <div className="text-xs text-gray-600">Graded</div>
-                                        </div>
-                                        <div className="text-center p-3 bg-orange-50 rounded">
-                                            <div className="text-2xl text-orange-600">
-                                                {assignment?.submitted_count !== undefined && assignment?.graded_count !== undefined
-                                                    ? assignment.submitted_count - assignment.graded_count
-                                                    : 0}
+                                        <div
+                                            className="group relative text-center p-3 bg-blue-50 rounded"
+                                            title="Number of submissions received out of total enrolled students"
+                                        >
+                                            <div className="text-2xl text-blue-600">{submissionCount}/{enrolledCount}</div>
+                                            <div className="text-xs text-gray-600">Submitted / Enrolled</div>
+                                            <div className="pointer-events-none mt-1 text-[10px] text-blue-700 opacity-0 transition-opacity group-hover:opacity-100">
+                                                Submissions received / total students
                                             </div>
+                                        </div>
+                                        <div
+                                            className="group relative text-center p-3 bg-green-50 rounded"
+                                            title="Number of submissions that have been graded"
+                                        >
+                                            <div className="text-2xl text-green-600">{gradedCount}</div>
+                                            <div className="text-xs text-gray-600">Graded</div>
+                                            <div className="pointer-events-none mt-1 text-[10px] text-green-700 opacity-0 transition-opacity group-hover:opacity-100">
+                                                Submissions already graded
+                                            </div>
+                                        </div>
+                                        <div
+                                            className="group relative text-center p-3 bg-orange-50 rounded"
+                                            title="Pending submissions = Submitted - Graded"
+                                        >
+                                            <div className="text-2xl text-orange-600">{pendingCount}</div>
                                             <div className="text-xs text-gray-600">Pending</div>
+                                            <div className="pointer-events-none mt-1 text-[10px] text-orange-700 opacity-0 transition-opacity group-hover:opacity-100">
+                                                Waiting for grading
+                                            </div>
                                         </div>
                                     </div>
                                     <p className="text-sm text-gray-600 mb-4 line-clamp-2">
@@ -427,7 +446,12 @@ export function CourseAssignments() {
                                     </p>
                                     <div className="flex gap-2">
                                         <Link
-                                            to={`/lecturer/subjects/${course_id}/assignments/${assignment.assignment_id}/submissions`}
+                                            to={`/lecturer/courses/${course_id}/assignments/${assignment.assignment_id}/submissions`}
+                                            state={{
+                                                courseTitle: course?.name ?? '',
+                                                assignmentTitle: assignment.title,
+                                                dueDate: assignment.due_date ?? '',
+                                            }}
                                             className="flex-1"
                                         >
                                             <Button variant="outline" className="w-full">

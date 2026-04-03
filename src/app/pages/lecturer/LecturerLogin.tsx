@@ -48,7 +48,6 @@ export function LecturerLogin() {
   }
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log(formData)
 
     if (!validate()) {
       toast.error('Please fill in all required fields correctly')
@@ -57,7 +56,6 @@ export function LecturerLogin() {
     setLoading(true)
     try {
       const response = await login(formData.username, formData.password, 'lecturer')
-      console.log(' Login response:', response)
       if (response) {
         toast.success('Login successful! Welcome to Lecturer portal.')
         navigate('/lecturer/dashboard')

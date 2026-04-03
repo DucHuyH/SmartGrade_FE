@@ -10,6 +10,7 @@ import { CourseAssignments } from './app/pages/lecturer/CourseAsssigments'
 import { CreateAssignment } from './app/pages/lecturer/CreateAssignment'
 import { EditAssignment } from './app/pages/lecturer/EditAssignment'
 import { CourseStudentList } from './app/pages/lecturer/CourseStudentList'
+import { SubmissionTable } from './app/pages/lecturer/SubmissionTable'
 
 
 import { StudentDashboard } from './app/pages/student/StudentDashboard'
@@ -61,6 +62,10 @@ export const router = createBrowserRouter([
       {
         path: 'courses/:course_id/students',
         Component: CourseStudentList
+      },
+      {
+        path: 'courses/:course_id/assignments/:assignment_id/submissions',
+        Component: SubmissionTable
       }
     ]
   },

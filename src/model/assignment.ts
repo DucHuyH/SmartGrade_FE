@@ -13,6 +13,7 @@ export interface Assignment {
     max_file_size_mb: number;
     allow_late_submissions: boolean;
     enable_ai_grading: boolean;
+    question_file?: string;
     // file_url?: string;
     // file_public_id?: string;
     question_file_url?: string;
@@ -21,8 +22,13 @@ export interface Assignment {
     solution_file_public_id?: string;
     created_at?: string;
     updated_at?: string;
+    submission_count?: number;
     submitted_count?: number;
     graded_count?: number;
+    enrolled_count?: number;
+    has_submitted?: boolean;
+    submission_attempt_count?: number;
+    submission_submitted_at?: string;
     rubric?: Rubric | null;
 
 }
