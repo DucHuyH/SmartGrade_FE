@@ -95,7 +95,7 @@ const normalizeAllowedFileTypes = (value: unknown): string => {
 export function StudentAssignments() {
     const { course_id } = useParams();
     const location = useLocation();
-    const navState = (location.state as { courseName?: string; courseCode?: string } | null) ?? null;
+    const navState = (location.state as { courseName?: string; courseCode?: string; activeTab?: 'pending' | 'submitted' } | null) ?? null;
 
     const [course, setCourse] = useState<Course | null>(null);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -103,7 +103,7 @@ export function StudentAssignments() {
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
     const [isLoadingCourse, setIsLoadingCourse] = useState(false);
     const [isLoadingAssignments, setIsLoadingAssignments] = useState(false);
-    const [activeTab, setActiveTab] = useState<'pending' | 'submitted'>('pending');
+    const [activeTab, setActiveTab] = useState<'pending' | 'submitted'>(navState?.activeTab ?? 'pending');
     const [pagination, setPagination] = useState<PaginationState>(DEFAULT_PAGINATION);
 
     useEffect(() => {
@@ -279,16 +279,28 @@ export function StudentAssignments() {
                                             {assignment.description || 'No description provided.'}
                                         </p>
 
-                                        <Link
-                                            to={`/student/courses/${course_id}/assignments/${assignment.assignment_id}`}
-                                            state={{
-                                                courseName: course?.name ?? navState?.courseName,
-                                                courseCode: course?.course_code ?? navState?.courseCode,
-                                            }}
-                                            className="block"
-                                        >
-                                            <Button className="w-full">View Grade and Feedback</Button>
-                                        </Link>
+                                        {!assignment.has_graded ? (
+                                            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                                Submitted. Waiting for lecturer grading and feedback.
+                                            </div>
+                                        ) : null}
+
+                                        {assignment.has_graded ? (
+                                            <Link
+                                                to={`/student/courses/${course_id}/assignments/${assignment.assignment_id}`}
+                                                state={{
+                                                    courseName: course?.name ?? navState?.courseName,
+                                                    courseCode: course?.course_code ?? navState?.courseCode,
+                                                }}
+                                                className="block"
+                                            >
+                                                <Button className="w-full">View Grade and Feedback</Button>
+                                            </Link>
+                                        ) : (
+                                            <Button className="w-full" disabled>
+                                                Grade Pending
+                                            </Button>
+                                        )}
                                     </CardContent>
                                 </Card>
                             );

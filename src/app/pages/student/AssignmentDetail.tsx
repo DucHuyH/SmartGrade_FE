@@ -196,13 +196,15 @@ export function AssignmentDetail() {
     () => resolveFileUrl(assignment?.question_file_url ?? assignment?.question_file),
     [assignment?.question_file_url, assignment?.question_file]
   );
+  const resolvedCourseName = courseName || assignment?.courseName || assignment?.course_name || '';
+  const isAlreadySubmitted = Boolean(assignment?.has_submitted);
 
   // Build breadcrumb items
   const breadcrumbItems = [];
   if (resolvedCourseId) {
     breadcrumbItems.push(
       { label: 'My Courses', href: '/student/courses' },
-      { label: courseName || `Course ${resolvedCourseId}`, href: `/student/courses/${resolvedCourseId}/assignments` },
+      { label: resolvedCourseName || `Course ${resolvedCourseId}`, href: `/student/courses/${resolvedCourseId}/assignments` },
       { label: assignment?.title ?? 'Assignment Detail' }
     );
   }
@@ -246,7 +248,7 @@ export function AssignmentDetail() {
       <div className="flex justify-between items-start">
         <div>
           <h2>{assignment.title}</h2>
-          <p className="text-sm text-gray-600">{courseName || `Course ${resolvedCourseId ?? assignment.course_id}`}</p>
+          <p className="text-sm text-gray-600">{resolvedCourseName || `Course ${resolvedCourseId ?? assignment.course_id}`}</p>
         </div>
         {/* {typeof daysLeft === 'number' && (
           <Badge className={daysLeft <= 3 ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}>
@@ -407,18 +409,30 @@ export function AssignmentDetail() {
           </Card>
 
           <div className="space-y-3 flex flex-col">
-            <Link
-              to={`/student/submit/${assignment.assignment_id}`}
-              state={{
-                assignment,
-                courseName,
-                backPath: resolvedCourseId
-                  ? `/student/courses/${resolvedCourseId}/assignments/${assignment.assignment_id}`
-                  : '/student/assignments',
-              }}
-            >
-              <Button className="w-full">Submit Assignment</Button>
-            </Link>
+            {isAlreadySubmitted ? (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                You have already submitted this assignment.
+              </div>
+            ) : null}
+
+            {isAlreadySubmitted ? (
+              <Button className="w-full" disabled>
+                Submitted
+              </Button>
+            ) : (
+              <Link
+                to={`/student/submit/${assignment.assignment_id}`}
+                state={{
+                  assignment,
+                  courseName: resolvedCourseName || courseName,
+                  backPath: resolvedCourseId
+                    ? `/student/courses/${resolvedCourseId}/assignments/${assignment.assignment_id}`
+                    : '/student/assignments',
+                }}
+              >
+                <Button className="w-full">Submit Assignment</Button>
+              </Link>
+            )}
             <Link to={resolvedCourseId ? `/student/courses/${resolvedCourseId}/assignments` : '/student/assignments'}>
               <Button variant="outline" className="w-full">
                 Back to Assignments

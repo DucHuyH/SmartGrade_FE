@@ -166,6 +166,15 @@ export function SubmitAssignment() {
 
     const courseDisplay = [navState?.courseCode, navState?.courseName].filter(Boolean).join(' • ');
     const backPath = navState?.backPath ?? '/student/courses';
+    const backState = {
+        courseName: navState?.courseName,
+        courseCode: navState?.courseCode,
+    };
+    const assignmentsPath = assignment?.course_id ? `/student/courses/${assignment.course_id}/assignments` : backPath;
+    const assignmentsBackState = {
+        ...backState,
+        activeTab: 'submitted' as const,
+    };
 
     useEffect(() => {
         if (!resolvedAssignmentId) {
@@ -280,7 +289,7 @@ export function SubmitAssignment() {
                 <Button
                     type="button"
                     variant="outline"
-                    onClick={() => navigate(backPath)}
+                    onClick={() => navigate(backPath, { state: backState })}
                     className="shrink-0"
                 >
                     <ArrowLeft className="h-4 w-4" />
@@ -406,7 +415,7 @@ export function SubmitAssignment() {
                             {isSubmitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
                             {isSubmitting ? 'Submitting...' : isOverdue ? 'Overdue - Cannot Submit' : 'Submit Assignment'}
                         </Button>
-                        <Link to={backPath} className="flex-1">
+                        <Link to={backPath} state={backState} className="flex-1">
                             <Button variant="outline" className="w-full">
                                 Cancel
                             </Button>
@@ -427,6 +436,11 @@ export function SubmitAssignment() {
                                 <p className="text-sm text-green-700">
                                     Your assignment has been submitted and will be reviewed by your lecturer.
                                 </p>
+                            </div>
+                            <div className="pt-2">
+                                <Link to={assignmentsPath} state={assignmentsBackState}>
+                                    <Button variant="outline">Back to Submitted Assignments</Button>
+                                </Link>
                             </div>
                         </div>
                     </CardContent>

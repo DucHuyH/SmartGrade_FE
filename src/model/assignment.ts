@@ -3,6 +3,10 @@ import { Rubric } from './rubric';
 export interface Assignment {
     assignment_id: string;
     course_id: string;
+    course_name?: string;
+    courseName?: string;
+    course_code?: string;
+    courseCode?: string;
     title: string;
     description: string;
     questions: string;
@@ -27,6 +31,7 @@ export interface Assignment {
     graded_count?: number;
     enrolled_count?: number;
     has_submitted?: boolean;
+    has_graded?: boolean;
     submission_attempt_count?: number;
     submission_submitted_at?: string;
     rubric?: Rubric | null;
