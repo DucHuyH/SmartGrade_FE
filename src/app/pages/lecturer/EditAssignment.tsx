@@ -258,9 +258,23 @@ export function EditAssignment() {
   }, [deadline, minimumDeadlineInput])
 
   const selectedFileTypesLabel = useMemo(() => selectedFileTypes.join(', '), [selectedFileTypes])
-  const rubricPoints = useMemo(
-    () => criteriaList.reduce((sum, criteria) => sum + (Number(criteria.max_score) || 0), 0),
+  const normalizedRubricCriteria = useMemo(
+    () =>
+      criteriaList
+        .map((criteria) => ({
+          ...criteria,
+          criteria_name: criteria.criteria_name.trim(),
+          description: criteria.description.trim(),
+          max_score: Number(criteria.max_score) || 0,
+          weight: Number(criteria.weight) || 1,
+        }))
+        .filter((criteria) => criteria.criteria_name || criteria.description || criteria.max_score > 0),
     [criteriaList],
+  )
+  const hasRubricInput = normalizedRubricCriteria.length > 0
+  const rubricPoints = useMemo(
+    () => normalizedRubricCriteria.reduce((sum, criteria) => sum + (Number(criteria.max_score) || 0), 0),
+    [normalizedRubricCriteria],
   )
 
   const toggleFileType = (fileType: string) => {
@@ -312,10 +326,10 @@ export function EditAssignment() {
     )
   }
 
-  const getRubricPayload = (): RubricPayload => {
+  const getRubricPayload = (criteriaItems: CriteriaDraft[]): RubricPayload => {
     return {
       title: title.trim() ? `Rubric for ${title.trim()}` : 'Assignment Rubric',
-      criteria: criteriaList.map((criteria) => ({
+      criteria: criteriaItems.map((criteria) => ({
         criteria_id: criteria.criteria_id,
         rubric_id: criteria.rubric_id,
         criteria_name: criteria.criteria_name.trim(),
@@ -440,24 +454,26 @@ export function EditAssignment() {
       return
     }
 
-    const hasEmptyCriteriaName = criteriaList.some((criteria) => !criteria.criteria_name.trim())
-    if (hasEmptyCriteriaName) {
-      toast.error('Each rubric criteria must have a name.')
-      return
+    if (hasRubricInput) {
+      const hasEmptyCriteriaName = normalizedRubricCriteria.some((criteria) => !criteria.criteria_name)
+      if (hasEmptyCriteriaName) {
+        toast.error('Each rubric criteria must have a name.')
+        return
+      }
+
+      const hasInvalidCriteriaScore = normalizedRubricCriteria.some((criteria) => (Number(criteria.max_score) || 0) <= 0)
+      if (hasInvalidCriteriaScore) {
+        toast.error('Each rubric criteria must have points greater than 0.')
+        return
+      }
+
+      if (rubricPoints !== parsedMaxScore) {
+        toast.error('Total rubric points must match Assignment Total Points.')
+        return
+      }
     }
 
-    const hasInvalidCriteriaScore = criteriaList.some((criteria) => (Number(criteria.max_score) || 0) <= 0)
-    if (hasInvalidCriteriaScore) {
-      toast.error('Each rubric criteria must have points greater than 0.')
-      return
-    }
-
-    if (rubricPoints !== parsedMaxScore) {
-      toast.error('Total rubric points must match Assignment Total Points.')
-      return
-    }
-
-    const rubricPayload = getRubricPayload()
+    const rubricPayload = getRubricPayload(hasRubricInput ? normalizedRubricCriteria : [])
 
     setIsSubmitting(true);
     try {
@@ -506,8 +522,9 @@ export function EditAssignment() {
           max_file_size_mb: parsedMaxFileSize,
           allow_late_submissions: allowLateSubmissions,
           enable_ai_grading: enableAiGrading,
-          rubric: rubricPayload,
         };
+
+        submitData.rubric = rubricPayload;
 
         if (isCurrentQuestionFileRemoved) {
           submitData.question_file_url = null;

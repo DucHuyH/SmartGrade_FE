@@ -12,6 +12,7 @@ export type LecturerSubmission = {
     max_score: number | null;
     score: number | null;
     status: 'not_submitted' | 'pending' | 'graded';
+    has_published: boolean;
     file_url: string | null;
 };
 
@@ -30,6 +31,23 @@ const parseLecturerSubmissionsPayload = (payload: unknown): LecturerSubmission[]
         }
 
         return null;
+    };
+
+    const toBoolean = (value: unknown): boolean => {
+        if (typeof value === 'boolean') {
+            return value;
+        }
+
+        if (typeof value === 'number') {
+            return value === 1;
+        }
+
+        if (typeof value === 'string') {
+            const normalized = value.trim().toLowerCase();
+            return normalized === 'true' || normalized === '1' || normalized === 'yes';
+        }
+
+        return false;
     };
 
     const listCandidate =
@@ -97,6 +115,10 @@ const parseLecturerSubmissionsPayload = (payload: unknown): LecturerSubmission[]
                 ? 'graded'
                 : 'pending';
 
+        const hasPublished = toBoolean(
+            submissionRecord.has_published ?? submissionRecord.is_published ?? false
+        );
+
         const studentEmailRaw = submissionRecord.student_email ?? studentRecord.email;
         const studentEmail = typeof studentEmailRaw === 'string' && studentEmailRaw.trim() ? studentEmailRaw : undefined;
 
@@ -111,6 +133,7 @@ const parseLecturerSubmissionsPayload = (payload: unknown): LecturerSubmission[]
             max_score: maxScore,
             score: finalScore,
             status,
+            has_published: hasPublished,
             file_url: fileUrl,
         };
     });
@@ -163,6 +186,7 @@ export const getAssignmentSubmissions = async (assignmentId: string): Promise<Le
 export const getAssignmentDetails = async (assignmentId: string) => {
     try {
         const response = await axiosInstance.get(`/assignments/detail/${assignmentId}/`);
+        console.log(`Raw assignment detail response for assignment ${assignmentId}:`, response.data);
         const payload = response.data?.data as Record<string, unknown> | undefined;
 
         if (!payload) {
@@ -184,6 +208,7 @@ export const getAssignmentDetails = async (assignmentId: string) => {
             assignmentContainer?.rubric ??
             root?.rubric ??
             null;
+
 
         return {
             ...(assignmentRecord as unknown as Assignment),

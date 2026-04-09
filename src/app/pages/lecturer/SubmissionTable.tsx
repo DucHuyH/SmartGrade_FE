@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { Button } from '../../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Badge } from '../../components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Breadcrumb } from '../../components/Breadcrumb';
-import { Download, Loader2, Sparkles } from 'lucide-react';
+import { Download, Loader2, Megaphone, Sparkles } from 'lucide-react';
 import { Assignment } from '../../../model/assignment';
 import { Course } from '../../../model';
 import { getCourseDetails } from '../../services/lecturer/courseService';
@@ -33,6 +34,9 @@ export function SubmissionTable() {
     const [submissions, setSubmissions] = useState<LecturerSubmission[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [aiGrading, setAiGrading] = useState(false);
+    const [publishingGrades, setPublishingGrades] = useState(false);
+    const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<Set<string>>(new Set());
+    const [pendingAction, setPendingAction] = useState<'ai' | 'publish' | null>(null);
 
     useEffect(() => {
         if (!course_id || !assignment_id) {
@@ -63,9 +67,76 @@ export function SubmissionTable() {
     }, [course_id, assignment_id]);
 
     const handleAIGrade = () => {
-        setAiGrading(true);
-        toast.info('AI grading endpoint is not integrated yet.');
-        setTimeout(() => setAiGrading(false), 600);
+        if (selectedSubmissionIds.size === 0) {
+            toast.warning('Please select at least one submission before using this action.');
+            return;
+        }
+
+        const hasNotSubmittedSelection = submissions.some(
+            (submission) => selectedSubmissionIds.has(submission.submission_id) && submission.status === 'not_submitted'
+        );
+
+        if (hasNotSubmittedSelection) {
+            toast.warning('Submissions with status Not Submitted cannot be graded with AI.');
+            return;
+        }
+
+        setPendingAction('ai');
+    };
+
+    const handlePublishGrade = () => {
+        if (selectedSubmissionIds.size === 0) {
+            toast.warning('Please select at least one submission before using this action.');
+            return;
+        }
+
+        const hasInvalidStatusSelection = submissions.some(
+            (submission) => selectedSubmissionIds.has(submission.submission_id) && submission.status !== 'graded'
+        );
+
+        if (hasInvalidStatusSelection) {
+            toast.warning('Only submissions with status Graded can be published.');
+            return;
+        }
+
+        setPendingAction('publish');
+    };
+
+    const handleConfirmAction = () => {
+        if (pendingAction === 'ai') {
+            setAiGrading(true);
+            toast.info(`AI grading endpoint is not integrated yet. Selected ${selectedSubmissionIds.size} submissions.`);
+            setTimeout(() => setAiGrading(false), 600);
+        }
+
+        if (pendingAction === 'publish') {
+            setPublishingGrades(true);
+            toast.info(`Publish grade endpoint is not integrated yet. Selected ${selectedSubmissionIds.size} submissions.`);
+            setTimeout(() => setPublishingGrades(false), 600);
+        }
+
+        setPendingAction(null);
+    };
+
+    const handleSelectAll = (checked: boolean) => {
+        if (!checked) {
+            setSelectedSubmissionIds(new Set());
+            return;
+        }
+
+        setSelectedSubmissionIds(new Set(submissions.map((submission) => submission.submission_id)));
+    };
+
+    const handleSelectSubmission = (submissionId: string, checked: boolean) => {
+        setSelectedSubmissionIds((prev) => {
+            const next = new Set(prev);
+            if (checked) {
+                next.add(submissionId);
+            } else {
+                next.delete(submissionId);
+            }
+            return next;
+        });
     };
 
     const getStatusBadge = (status: string) => {
@@ -99,6 +170,10 @@ export function SubmissionTable() {
         };
     }, [assignment, submissions]);
 
+    const selectedCount = selectedSubmissionIds.size;
+    const allSelected = submissions.length > 0 && selectedCount === submissions.length;
+    const partiallySelected = selectedCount > 0 && selectedCount < submissions.length;
+
     // const sortedSubmissions = useMemo(() => {
     //     return [...submissions].sort((left, right) => {
     //         const leftTime = left.submitted_at ? new Date(left.submitted_at).getTime() : Number.POSITIVE_INFINITY;
@@ -131,10 +206,20 @@ export function SubmissionTable() {
                     <h2>Assignment Submissions</h2>
                     <p className="text-sm text-gray-600">Review and grade student submissions</p>
                 </div>
-                <Button onClick={handleAIGrade} disabled={aiGrading}>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    {aiGrading ? 'AI Grading...' : 'Grade All with AI'}
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={handlePublishGrade}
+                        disabled={publishingGrades}
+                    >
+                        <Megaphone className="h-4 w-4 mr-2" />
+                        {publishingGrades ? 'Publishing...' : 'Publish Grade'}
+                    </Button>
+                    <Button onClick={handleAIGrade} disabled={aiGrading}>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        {aiGrading ? 'AI Grading...' : 'Grade All with AI'}
+                    </Button>
+                </div>
             </div>
 
             <Card>
@@ -188,8 +273,22 @@ export function SubmissionTable() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>Student</TableHead>
-                                            <TableHead>Student Code</TableHead>
+                                            <TableHead className="w-12">
+                                                <input
+                                                    type="checkbox"
+                                                    className="h-4 w-4 accent-blue-600"
+                                                    checked={allSelected}
+                                                    ref={(checkbox) => {
+                                                        if (checkbox) {
+                                                            checkbox.indeterminate = partiallySelected;
+                                                        }
+                                                    }}
+                                                    onChange={(event) => handleSelectAll(event.target.checked)}
+                                                    aria-label="Select all submissions"
+                                                />
+                                            </TableHead>
+                                            <TableHead>Student ID</TableHead>
+                                            <TableHead>Name</TableHead>
                                             <TableHead>Submitted At</TableHead>
                                             <TableHead>Status</TableHead>
                                             <TableHead>Grade</TableHead>
@@ -202,8 +301,18 @@ export function SubmissionTable() {
 
                                             return (
                                                 <TableRow key={submission.submission_id}>
-                                                    <TableCell>{submission.student_name}</TableCell>
+                                                    <TableCell>
+                                                        <input
+                                                            type="checkbox"
+                                                            className="h-4 w-4 accent-blue-600"
+                                                            checked={selectedSubmissionIds.has(submission.submission_id)}
+                                                            onChange={(event) => handleSelectSubmission(submission.submission_id, event.target.checked)}
+                                                            aria-label={`Select submission of ${submission.student_name}`}
+                                                        />
+                                                    </TableCell>
                                                     <TableCell className="text-gray-600">{submission.student_code || submission.student_id || '-'}</TableCell>
+                                                    <TableCell>{submission.student_name}</TableCell>
+
                                                     <TableCell>
                                                         {submission.submitted_at ? (
                                                             <span className="text-sm">
@@ -213,7 +322,16 @@ export function SubmissionTable() {
                                                             <span className="text-sm text-gray-400">Not submitted</span>
                                                         )}
                                                     </TableCell>
-                                                    <TableCell>{getStatusBadge(submissionStatus)}</TableCell>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-2">
+                                                            {getStatusBadge(submissionStatus)}
+                                                            {submission.has_published && (
+                                                                <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
+                                                                    Published
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
                                                     <TableCell>
                                                         {submission.final_score !== null ? (
                                                             <span className="font-medium">
@@ -250,6 +368,27 @@ export function SubmissionTable() {
                     )}
                 </CardContent>
             </Card>
+
+            <Dialog open={pendingAction !== null} onOpenChange={(open) => !open && setPendingAction(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>
+                            {pendingAction === 'publish' ? 'Confirm Publish Grade' : 'Confirm Grade All with AI'}
+                        </DialogTitle>
+                        <DialogDescription>
+                            You selected {selectedCount} submission{selectedCount === 1 ? '' : 's'}. Do you want to continue?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setPendingAction(null)}>
+                            Cancel
+                        </Button>
+                        <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleConfirmAction}>
+                            Confirm
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

@@ -58,9 +58,9 @@ export function ImportExcelModal({ open, onOpenChange, onImport }: ImportExcelMo
         parsedRows.forEach((row, index) => {
             const rowNumber = index + rowNumberOffset;
 
-            // if (!STUDENT_ID_REGEX.test(row.studentId)) {
-            //     validationErrors.push(`Row ${rowNumber}: StudentID must contain exactly 11 digits.`);
-            // }
+            if (!STUDENT_ID_REGEX.test(row.studentId)) {
+                validationErrors.push(`Row ${rowNumber}: StudentID must contain exactly 11 digits.`);
+            }
 
             if (!row.name || row.name.length < 2) {
                 validationErrors.push(`Row ${rowNumber}: Name is required and must be at least 2 characters.`);
