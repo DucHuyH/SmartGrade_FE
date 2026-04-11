@@ -1,16 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Badge } from '../../components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Breadcrumb } from '../../components/Breadcrumb';
-import { Download, Loader2, Megaphone, Sparkles } from 'lucide-react';
+import { Download, Eye, Loader2, Megaphone, Sparkles } from 'lucide-react';
 import { Assignment } from '../../../model/assignment';
 import { Course } from '../../../model';
 import { getCourseDetails } from '../../services/lecturer/courseService';
-import { getAssignmentDetails, getAssignmentSubmissions, LecturerSubmission } from '../../services/lecturer/assignmentService';
+import {
+    getAssignmentDetails,
+    getAssignmentSubmissions,
+    LecturerSubmission,
+    publishSubmissionGrades,
+} from '../../services/lecturer/assignmentService';
 import { toast } from 'react-toastify';
 
 const parseCoursePayload = (payload: unknown): Course | null => {
@@ -27,6 +32,7 @@ const parseCoursePayload = (payload: unknown): Course | null => {
 
 export function SubmissionTable() {
     const { course_id, assignment_id } = useParams();
+    const navigate = useNavigate();
     const location = useLocation();
     const pageState = (location.state as { courseTitle?: string; assignmentTitle?: string; dueDate?: string } | null) ?? null;
     const [course, setCourse] = useState<Course | null>(null);
@@ -102,7 +108,7 @@ export function SubmissionTable() {
         setPendingAction('publish');
     };
 
-    const handleConfirmAction = () => {
+    const handleConfirmAction = async () => {
         if (pendingAction === 'ai') {
             setAiGrading(true);
             toast.info(`AI grading endpoint is not integrated yet. Selected ${selectedSubmissionIds.size} submissions.`);
@@ -110,12 +116,53 @@ export function SubmissionTable() {
         }
 
         if (pendingAction === 'publish') {
+            if (!assignment_id) {
+                toast.error('Assignment information is missing.');
+                setPendingAction(null);
+                return;
+            }
+
+            const selectedIds = Array.from(selectedSubmissionIds);
             setPublishingGrades(true);
-            toast.info(`Publish grade endpoint is not integrated yet. Selected ${selectedSubmissionIds.size} submissions.`);
-            setTimeout(() => setPublishingGrades(false), 600);
+
+            try {
+                await publishSubmissionGrades(selectedIds);
+                toast.success(`Published grades for ${selectedIds.length} submission${selectedIds.length === 1 ? '' : 's'}.`);
+
+                const refreshedSubmissions = await getAssignmentSubmissions(assignment_id);
+                setSubmissions(refreshedSubmissions);
+                setSelectedSubmissionIds(new Set());
+            } catch (error) {
+                console.error('Error publishing grades:', error);
+                toast.error('Failed to publish grades. Please try again.');
+            } finally {
+                setPublishingGrades(false);
+            }
         }
 
         setPendingAction(null);
+    };
+
+    const handleViewSubmission = (submission: LecturerSubmission) => {
+        if (!course_id || !assignment_id || submission.status === 'not_submitted') {
+            return;
+        }
+
+        navigate(
+            `/lecturer/courses/${course_id}/assignments/${assignment_id}/submissions/${submission.submission_id}/ai-grading`,
+            {
+                state: {
+                    courseTitle: displayCourseTitle,
+                    assignmentTitle: displayAssignmentTitle,
+                    submissionStatus: submission.status,
+                    hasPublished: submission.has_published,
+                    studentName: submission.student_name,
+                    studentCode: submission.student_code || submission.student_id,
+                    fileUrl: submission.file_url,
+                    assignmentMaxScore: assignment?.max_score,
+                },
+            }
+        );
     };
 
     const handleSelectAll = (checked: boolean) => {
@@ -173,19 +220,6 @@ export function SubmissionTable() {
     const selectedCount = selectedSubmissionIds.size;
     const allSelected = submissions.length > 0 && selectedCount === submissions.length;
     const partiallySelected = selectedCount > 0 && selectedCount < submissions.length;
-
-    // const sortedSubmissions = useMemo(() => {
-    //     return [...submissions].sort((left, right) => {
-    //         const leftTime = left.submitted_at ? new Date(left.submitted_at).getTime() : Number.POSITIVE_INFINITY;
-    //         const rightTime = right.submitted_at ? new Date(right.submitted_at).getTime() : Number.POSITIVE_INFINITY;
-
-    //         if (leftTime !== rightTime) {
-    //             return leftTime - rightTime;
-    //         }
-
-    //         return left.student_name.localeCompare(right.student_name);
-    //     });
-    // }, [submissions]);
 
     // Build breadcrumb items
     const breadcrumbItems = [];
@@ -298,6 +332,7 @@ export function SubmissionTable() {
                                     <TableBody>
                                         {submissions.map((submission) => {
                                             const submissionStatus = submission.status;
+                                            // Table row for each submission with unique submission_id key
 
                                             return (
                                                 <TableRow key={submission.submission_id}>
@@ -346,6 +381,16 @@ export function SubmissionTable() {
                                                     </TableCell>
                                                     <TableCell>
                                                         <div className="flex gap-2">
+                                                            {submission.status !== 'not_submitted' && (
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => handleViewSubmission(submission)}
+                                                                >
+                                                                    <Eye className="h-4 w-4 mr-1" />
+                                                                    View
+                                                                </Button>
+                                                            )}
                                                             {submission.file_url && (
                                                                 <a href={submission.file_url} target="_blank" rel="noreferrer">
                                                                     <Button variant="outline" size="sm">

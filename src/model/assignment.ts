@@ -34,6 +34,9 @@ export interface Assignment {
     has_graded?: boolean;
     submission_attempt_count?: number;
     submission_submitted_at?: string;
+    submission_id?: string;
+    grade_score?: number;
+    grade_feedback?: string;
     rubric?: Rubric | null;
 
 }

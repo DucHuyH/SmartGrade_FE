@@ -11,6 +11,7 @@ import { CreateAssignment } from './app/pages/lecturer/CreateAssignment'
 import { EditAssignment } from './app/pages/lecturer/EditAssignment'
 import { CourseStudentList } from './app/pages/lecturer/CourseStudentList'
 import { SubmissionTable } from './app/pages/lecturer/SubmissionTable'
+import { AIGradingReview } from './app/pages/lecturer/AIGradingReview'
 
 
 import { StudentDashboard } from './app/pages/student/StudentDashboard'
@@ -18,6 +19,7 @@ import { MyCourses } from './app/pages/student/MyCourses'
 import { StudentAssignments } from './app/pages/student/StudentAssignments'
 import { AssignmentDetail } from './app/pages/student/AssignmentDetail'
 import { SubmitAssignment } from './app/pages/student/SubmitAssignment'
+import { ViewGrade } from './app/pages/student/ViewGrade'
 import { ErrorBoundary } from './app/components/ErrorBoundary'
 
 export const router = createBrowserRouter([
@@ -66,6 +68,10 @@ export const router = createBrowserRouter([
       {
         path: 'courses/:course_id/assignments/:assignment_id/submissions',
         Component: SubmissionTable
+      },
+      {
+        path: 'courses/:course_id/assignments/:assignment_id/submissions/:submission_id/ai-grading',
+        Component: AIGradingReview
       }
     ]
   },
@@ -93,6 +99,10 @@ export const router = createBrowserRouter([
       {
         path: 'submit/:assignment_id',
         Component: SubmitAssignment
+      },
+      {
+        path: 'submissions/:submission_id/grade',
+        Component: ViewGrade
       }
 
     ]

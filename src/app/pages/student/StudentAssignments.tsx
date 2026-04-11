@@ -95,7 +95,7 @@ const normalizeAllowedFileTypes = (value: unknown): string => {
 export function StudentAssignments() {
     const { course_id } = useParams();
     const location = useLocation();
-    const navState = (location.state as { courseName?: string; courseCode?: string; activeTab?: 'pending' | 'submitted' } | null) ?? null;
+    const navState = (location.state as { courseName?: string; courseCode?: string; activeTab?: 'pending' | 'submitted' | 'graded' } | null) ?? null;
 
     const [course, setCourse] = useState<Course | null>(null);
     const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -103,7 +103,7 @@ export function StudentAssignments() {
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
     const [isLoadingCourse, setIsLoadingCourse] = useState(false);
     const [isLoadingAssignments, setIsLoadingAssignments] = useState(false);
-    const [activeTab, setActiveTab] = useState<'pending' | 'submitted'>(navState?.activeTab ?? 'pending');
+    const [activeTab, setActiveTab] = useState<'pending' | 'submitted' | 'graded'>(navState?.activeTab ?? 'pending');
     const [pagination, setPagination] = useState<PaginationState>(DEFAULT_PAGINATION);
 
     useEffect(() => {
@@ -185,8 +185,9 @@ export function StudentAssignments() {
     ];
 
     const pendingAssignments = assignments.filter((assignment) => !assignment.has_submitted);
-    const submittedAssignments = assignments.filter((assignment) => assignment.has_submitted);
-    const visibleAssignments = activeTab === 'submitted' ? submittedAssignments : pendingAssignments;
+    const submittedAssignments = assignments.filter((assignment) => assignment.has_submitted && !assignment.has_graded);
+    const gradedAssignments = assignments.filter((assignment) => assignment.has_graded);
+    const visibleAssignments = activeTab === 'graded' ? gradedAssignments : activeTab === 'submitted' ? submittedAssignments : pendingAssignments;
 
     return (
         <div className="space-y-6">
@@ -223,10 +224,11 @@ export function StudentAssignments() {
                 className="max-w-md"
             />
 
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pending' | 'submitted')}>
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'pending' | 'submitted' | 'graded')}>
                 <TabsList>
-                    <TabsTrigger value="pending">Not Submitted ({pendingAssignments.length})</TabsTrigger>
-                    <TabsTrigger value="submitted">Submitted ({submittedAssignments.length})</TabsTrigger>
+                    <TabsTrigger value="pending" className="data-[state=active]:bg-red-100 data-[state=active]:text-red-700">Not Submitted ({pendingAssignments.length})</TabsTrigger>
+                    <TabsTrigger value="submitted" className="data-[state=active]:bg-amber-100 data-[state=active]:text-amber-700">Submitted ({submittedAssignments.length})</TabsTrigger>
+                    <TabsTrigger value="graded" className="data-[state=active]:bg-emerald-100 data-[state=active]:text-emerald-700">Graded ({gradedAssignments.length})</TabsTrigger>
                 </TabsList>
             </Tabs>
 
@@ -271,7 +273,6 @@ export function StudentAssignments() {
                                                     </span>
                                                 </CardDescription>
                                             </div>
-                                            <Badge className={dueMeta.className}>{dueMeta.text}</Badge>
                                         </div>
                                     </CardHeader>
                                     <CardContent className="space-y-4">
@@ -285,12 +286,28 @@ export function StudentAssignments() {
                                             </div>
                                         ) : null}
 
+                                        {assignment.has_graded && assignment.grade_score !== undefined ? (
+                                            <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-4 py-3 space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-sm font-medium text-emerald-900">Grade</span>
+                                                    <span className="text-lg font-bold text-emerald-700">{assignment.grade_score}/{assignment.max_score}</span>
+                                                </div>
+                                                {assignment.grade_feedback && (
+                                                    <p className="text-sm text-emerald-800 line-clamp-2">{assignment.grade_feedback}</p>
+                                                )}
+                                            </div>
+                                        ) : null}
+
                                         {assignment.has_graded ? (
                                             <Link
-                                                to={`/student/courses/${course_id}/assignments/${assignment.assignment_id}`}
+                                                to={`/student/submissions/${assignment.submission_id}/grade`}
                                                 state={{
                                                     courseName: course?.name ?? navState?.courseName,
                                                     courseCode: course?.course_code ?? navState?.courseCode,
+                                                    course_id: course_id,
+                                                    assignmentTitle: assignment.title,
+                                                    maxScore: assignment.max_score,
+                                                    assignmentId: assignment.assignment_id,
                                                 }}
                                                 className="block"
                                             >

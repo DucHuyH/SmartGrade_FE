@@ -16,6 +16,20 @@ export type LecturerSubmission = {
     file_url: string | null;
 };
 
+export const normalizeSubmissionIdentifier = (submissionId: string | number | null | undefined): string => {
+    if (submissionId === null || submissionId === undefined) {
+        return '';
+    }
+
+    const rawValue = String(submissionId).trim();
+    if (!rawValue) {
+        return '';
+    }
+
+    const lastNumberMatch = rawValue.match(/(\d+)(?!.*\d)/);
+    return lastNumberMatch?.[1] ?? rawValue;
+};
+
 const parseLecturerSubmissionsPayload = (payload: unknown): LecturerSubmission[] => {
     const root = (payload as Record<string, unknown>) ?? {};
     const nested = (root.data as Record<string, unknown> | undefined) ?? {};
@@ -70,12 +84,10 @@ const parseLecturerSubmissionsPayload = (payload: unknown): LecturerSubmission[]
             record;
         const studentRecord = (record.student as Record<string, unknown> | undefined) ?? {};
 
-        const submissionId =
-            String(
-                submissionRecord.submission_id ??
-                submissionRecord.id ??
-                `submission-${index}`
-            );
+        const rawSubmissionId =
+            submissionRecord.submission_id ??
+            submissionRecord.id ??
+            '';
 
         const studentId = String(
             submissionRecord.student_id ??
@@ -85,6 +97,14 @@ const parseLecturerSubmissionsPayload = (payload: unknown): LecturerSubmission[]
             studentRecord.student_code ??
             ''
         );
+
+        const submittedAtRaw = submissionRecord.submitted_at ?? submissionRecord.submission_time ?? null;
+        const submittedAt = typeof submittedAtRaw === 'string' && submittedAtRaw.trim() ? submittedAtRaw : null;
+
+        // Generate temporary submission_id if not provided
+        const submissionId = rawSubmissionId
+            ? String(rawSubmissionId)
+            : `temp_${studentId}_${submittedAt || 'no-date'}_${index}`;
 
         const studentCodeRaw = submissionRecord.student_code ?? studentRecord.student_code ?? studentId;
         const studentCode = typeof studentCodeRaw === 'string' && studentCodeRaw.trim() ? studentCodeRaw : studentId;
@@ -96,9 +116,6 @@ const parseLecturerSubmissionsPayload = (payload: unknown): LecturerSubmission[]
             studentRecord.full_name ??
             'Unknown Student'
         );
-
-        const submittedAtRaw = submissionRecord.submitted_at ?? submissionRecord.submission_time ?? null;
-        const submittedAt = typeof submittedAtRaw === 'string' && submittedAtRaw.trim() ? submittedAtRaw : null;
 
         const finalScore = toNullableNumber(
             submissionRecord.final_score ?? submissionRecord.score ?? submissionRecord.grade
@@ -172,9 +189,10 @@ export const getAssignmentsForCourse = async (
 export const getAssignmentSubmissions = async (assignmentId: string): Promise<LecturerSubmission[]> => {
     try {
         const response = await axiosInstance.get(`/submissions/${assignmentId}`);
+        console.log(`Raw response for submissions of assignment ${assignmentId}:`, response.data);
         const payload = (response.data?.data as unknown) ?? response.data;
 
-        console.log(`Raw submissions payload for assignment ${assignmentId}:`, payload);
+
 
         return parseLecturerSubmissionsPayload(payload);
     } catch (error) {
@@ -186,7 +204,6 @@ export const getAssignmentSubmissions = async (assignmentId: string): Promise<Le
 export const getAssignmentDetails = async (assignmentId: string) => {
     try {
         const response = await axiosInstance.get(`/assignments/detail/${assignmentId}/`);
-        console.log(`Raw assignment detail response for assignment ${assignmentId}:`, response.data);
         const payload = response.data?.data as Record<string, unknown> | undefined;
 
         if (!payload) {
@@ -278,4 +295,208 @@ export const deleteAssignment = async (assignmentId: string) => {
             `Error deleting assignment ${assignmentId}:`, error
         ); throw error;
     }
+};
+
+export type SubmissionGradeCriterion = {
+    criteria_id: string;
+    criteria_name: string;
+    max_score: number;
+    score: number;
+    feedback: string;
+};
+
+export type SubmissionGradeDetails = {
+    grade_id: string | null;
+    submission_id: string;
+    final_score: number | null;
+    feedback: string;
+    status: string;
+    has_published: boolean;
+    graded_at: string | null;
+    criteria_scores: SubmissionGradeCriterion[];
+};
+
+export type SaveSubmissionGradePayload = {
+    final_score: number;
+    feedback: string;
+    criteria_scores: Array<{
+        criteria_id: string;
+        score: number;
+        feedback: string;
+    }>;
+};
+
+const toNullableNumber = (value: unknown): number | null => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+    }
+
+    if (typeof value === 'string' && value.trim()) {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    return null;
+};
+
+const toBoolean = (value: unknown): boolean => {
+    if (typeof value === 'boolean') {
+        return value;
+    }
+
+    if (typeof value === 'number') {
+        return value === 1;
+    }
+
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        return normalized === 'true' || normalized === '1' || normalized === 'yes';
+    }
+
+    return false;
+};
+
+const getResponseData = (payload: unknown): unknown => {
+    const root = (payload as Record<string, unknown>) ?? {};
+    return root.data ?? payload;
+};
+
+const getStatusCode = (error: unknown): number | undefined => {
+    const maybeError = error as { response?: { status?: number } };
+    return maybeError.response?.status;
+};
+
+const requestWithFallback = async <T>(
+    endpoints: string[],
+    request: (endpoint: string) => Promise<T>
+): Promise<T> => {
+    let lastError: unknown;
+
+    for (const endpoint of endpoints) {
+        try {
+            return await request(endpoint);
+        } catch (error) {
+            lastError = error;
+            if (getStatusCode(error) !== 404) {
+                throw error;
+            }
+        }
+    }
+
+    throw lastError;
+};
+
+const parseSubmissionGradeDetailsPayload = (
+    payload: unknown,
+    fallbackSubmissionId: string
+): SubmissionGradeDetails => {
+    const root = (getResponseData(payload) as Record<string, unknown>) ?? {};
+    const gradeRoot =
+        (root.grade as Record<string, unknown> | undefined) ??
+        (root.data as Record<string, unknown> | undefined) ??
+        root;
+
+    const criteriaRaw =
+        (gradeRoot.rubric_scores as unknown[] | undefined) ??
+        (gradeRoot.criteria_scores as unknown[] | undefined) ??
+        (gradeRoot.criteria as unknown[] | undefined) ??
+        [];
+
+    const criteria_scores = Array.isArray(criteriaRaw)
+        ? criteriaRaw.map((entry, index) => {
+            const record = (entry as Record<string, unknown>) ?? {};
+            const score = toNullableNumber(record.score ?? record.ai_score ?? record.final_score) ?? 0;
+            const maxScore = toNullableNumber(record.max_score ?? record.maxPoints ?? record.max_points) ?? 0;
+
+            return {
+                criteria_id: String(record.criteria_id ?? record.id ?? index),
+                criteria_name: String(record.criteria_name ?? record.criteria ?? `Criteria ${index + 1}`),
+                max_score: maxScore,
+                score,
+                feedback: typeof record.feedback === 'string' ? record.feedback : '',
+            };
+        })
+        : [];
+
+    const submissionId = String(
+        gradeRoot.submission_id ?? root.submission_id ?? fallbackSubmissionId
+    );
+
+    return {
+        grade_id:
+            gradeRoot.grade_id !== undefined && gradeRoot.grade_id !== null
+                ? String(gradeRoot.grade_id)
+                : null,
+        submission_id: submissionId,
+        final_score: toNullableNumber(gradeRoot.final_score ?? gradeRoot.score),
+        feedback: typeof gradeRoot.feedback === 'string' ? gradeRoot.feedback : '',
+        status: String(gradeRoot.status ?? root.status ?? 'pending').toLowerCase(),
+        has_published: toBoolean(gradeRoot.has_published ?? gradeRoot.is_published),
+        graded_at:
+            typeof gradeRoot.graded_at === 'string' && gradeRoot.graded_at.trim()
+                ? gradeRoot.graded_at
+                : null,
+        criteria_scores,
+    };
+};
+
+export const getSubmissionGrade = async (submissionId: string): Promise<SubmissionGradeDetails> => {
+    const response = await axiosInstance.get(`/grading/${submissionId}`);
+    console.log(`Raw response for grade details of submission ${submissionId}:`, response.data);
+
+    return parseSubmissionGradeDetailsPayload(response.data, submissionId);
+};
+
+export const saveSubmissionGrade = async (
+    submissionId: string,
+    payload: SaveSubmissionGradePayload
+): Promise<SubmissionGradeDetails> => {
+    const requestPayload = {
+        final_score: payload.final_score,
+        feedback: payload.feedback,
+        rubric_scores: payload.criteria_scores,
+    };
+
+    const response = await requestWithFallback(
+        [`/grading/${submissionId}`, `/grading`],
+        (endpoint) => axiosInstance.post(endpoint, requestPayload)
+    );
+
+    return parseSubmissionGradeDetailsPayload(response.data, submissionId);
+};
+
+export type PublishGradeResponse = {
+    success: Array<{
+        submission_id: string | number;
+        status: string;
+    }>;
+    errors: Array<{
+        submission_id: string | number;
+        message: string;
+    }>;
+};
+
+export const publishSubmissionGrades = async (submissionIds: (string | number)[]): Promise<PublishGradeResponse> => {
+    if (submissionIds.length === 0) {
+        return { success: [], errors: [] };
+    }
+
+    const payload = {
+        list_submission_ids: submissionIds,
+    };
+
+    const response = await requestWithFallback(
+        ['/grading/finalize', '/grading/finalize/bulk'],
+        (endpoint) => axiosInstance.patch(endpoint, payload)
+    );
+
+    const responseData = getResponseData(response.data) as Record<string, unknown>;
+    return {
+        success: Array.isArray(responseData.success) ? responseData.success : [],
+        errors: Array.isArray(responseData.errors) ? responseData.errors : [],
+    };
+};
+
+export const finalizeSubmissionGrade = async (gradeId: string | number): Promise<void> => {
+    await axiosInstance.patch(`/grading/${gradeId}/finalize`);
 };
