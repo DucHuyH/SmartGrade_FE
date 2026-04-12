@@ -8,17 +8,22 @@ import { Separator } from '../../components/ui/separator';
 import { Badge } from '../../components/ui/badge';
 import { Breadcrumb } from '../../components/Breadcrumb';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { FileText, Loader2, Save, User, ChevronLeft, ChevronRight } from 'lucide-react';
+import { FileText, Loader2, Save, User, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { Assignment } from '../../../model/assignment';
+import { SimplePDFViewer } from '../../components/SimplePDFViewer';
 import {
     getAssignmentDetails,
     getAssignmentSubmissions,
     getSubmissionGrade,
+    getSubmissionFile,
+    fetchFileBlob,
     LecturerSubmission,
     publishSubmissionGrades,
     saveSubmissionGrade,
     SubmissionGradeCriterion,
+    generateFeedbackFromSubmission,
+    AnalysisAnnotation,
 } from '../../services/lecturer/assignmentService';
 
 type GradingRubricRow = {
@@ -109,6 +114,8 @@ export function AIGradingReview() {
     const [isRegrade, setIsRegrade] = useState<boolean>(Boolean(pageState?.hasPublished));
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
+    const [annotations, setAnnotations] = useState<AnalysisAnnotation[]>([]);
 
     useEffect(() => {
         if (!assignment_id || !routeSubmissionId) {
@@ -266,8 +273,6 @@ export function AIGradingReview() {
                 criteria_scores: criteriaScores,
             });
 
-            console.log('Grade saved successfully:', savedGrade, 'for: ', assignment_id);
-
             setGradeId(savedGrade.grade_id);
             // setSubmissionStatus('graded');
 
@@ -296,6 +301,60 @@ export function AIGradingReview() {
         }
 
         navigate(`/lecturer/courses/${course_id}/assignments/${assignment_id}/submissions`);
+    };
+
+    const handleGenerateFeedback = async () => {
+        if (!submissionFileUrl) {
+            toast.error('No file available to analyze');
+            return;
+        }
+
+        setIsGeneratingFeedback(true);
+        try {
+            // console.log('[handleGenerateFeedback] Starting feedback generation for submission:', {
+            //     submissionId: routeSubmissionId,
+            //     fileUrl: submissionFileUrl,
+            //     annotations,
+            // });
+            const response = await generateFeedbackFromSubmission({
+                fileUrl: submissionFileUrl,
+                annotations: annotations,
+                submissionId: routeSubmissionId,
+            });
+
+            // Update overall feedback
+            if (response.overallFeedback) {
+                setOverallFeedback(response.overallFeedback);
+            }
+
+            // Update rubrics with suggested scores and feedback
+            if (response.criteria && response.criteria.length > 0) {
+                setRubrics((prevRubrics) =>
+                    prevRubrics.map((rubric) => {
+                        const suggestion = response.criteria?.find(
+                            (c) => String(c.criteriaId) === String(rubric.id)
+                        );
+
+                        if (suggestion) {
+                            return {
+                                ...rubric,
+                                score: suggestion.suggestedScore ?? rubric.score,
+                                feedback: suggestion.feedback || rubric.feedback,
+                            };
+                        }
+
+                        return rubric;
+                    })
+                );
+            }
+
+            toast.success('Feedback generated successfully!');
+        } catch (error) {
+            console.error('[handleGenerateFeedback] Error:', error);
+            toast.error('Failed to generate feedback');
+        } finally {
+            setIsGeneratingFeedback(false);
+        }
     };
 
     const navigateToSubmission = (submission: LecturerSubmission) => {
@@ -420,8 +479,18 @@ export function AIGradingReview() {
                     </CardContent>
                 </Card>
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2 space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 auto-rows-max lg:auto-rows-[1fr]">
+                    {/* Left Panel: PDF Viewer with Drawing */}
+                    <div className="lg:col-span-2 h-full min-h-0">
+                        <SimplePDFViewer
+                            fileUrl={submissionFileUrl || undefined}
+                            onFetchFileBlob={fetchFileBlob}
+                            title="Student Submission"
+                        />
+                    </div>
+
+                    {/* Right Panel: Scoring and Feedback */}
+                    <div className="space-y-6">
                         <Card>
                             <CardHeader>
                                 <div className="flex items-center gap-3 pb-3">
@@ -438,15 +507,43 @@ export function AIGradingReview() {
                             </CardHeader>
                         </Card>
 
+                        {/* Score Summary */}
                         <Card>
                             <CardHeader>
-                                <CardTitle>Grading Rubrics</CardTitle>
-                                <CardDescription>Lecturer can edit score and feedback per criterion</CardDescription>
+                                <CardTitle className="text-lg">Score Summary</CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-6">
+                            <CardContent className="space-y-4">
+                                <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+                                    <div className="text-4xl font-bold mb-2 text-green-700">{totalScore}</div>
+                                    <div className="text-sm text-green-600">out of {totalMaxPoints}</div>
+                                    <div className="text-xl mt-2 font-semibold text-green-600">
+                                        {totalMaxPoints > 0 ? Math.round((totalScore / totalMaxPoints) * 100) : 0}%
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    {rubrics.map((rubric) => (
+                                        <div key={rubric.id} className="flex justify-between text-sm">
+                                            <span className="text-gray-600 truncate">{rubric.criteria}</span>
+                                            <span className="font-medium">
+                                                {rubric.score}/{rubric.maxPoints}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Grading Rubrics */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg">Grading Rubrics</CardTitle>
+                                <CardDescription className="text-xs">Edit score and feedback per criterion</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
                                 {rubrics.length === 0 ? (
                                     <div className="space-y-4">
-                                        <div className="flex items-end gap-3 p-4 bg-blue-50 rounded-lg">
+                                        <div className="flex items-end gap-3 p-3 bg-blue-50 rounded-lg">
                                             <div className="flex-1">
                                                 <label className="text-sm font-medium text-gray-700">Final Score</label>
                                                 <p className="text-xs text-gray-500 mt-1">Enter total score manually</p>
@@ -468,28 +565,29 @@ export function AIGradingReview() {
                                 ) : (
                                     rubrics.map((rubric, index) => (
                                         <div key={rubric.id}>
-                                            {index > 0 && <Separator className="mb-6" />}
-                                            <div className="space-y-4">
-                                                <div className="flex justify-between items-start">
-                                                    <h4 className="text-sm">{rubric.criteria}</h4>
+                                            {index > 0 && <Separator className="my-4" />}
+                                            <div className="space-y-2">
+                                                <div className="flex justify-between items-center">
+                                                    <h4 className="text-sm font-medium">{rubric.criteria}</h4>
                                                     <div className="flex items-center gap-2">
                                                         <Input
                                                             type="number"
                                                             value={rubric.score}
                                                             onChange={(event) => updateScore(rubric.id, Number(event.target.value))}
-                                                            className="w-16 text-center"
+                                                            className="w-14 text-center text-sm"
                                                             max={rubric.maxPoints}
                                                             min={0}
                                                             disabled={!canSave}
                                                         />
-                                                        <span className="text-sm text-gray-600">/ {rubric.maxPoints}</span>
+                                                        <span className="text-xs text-gray-600">/ {rubric.maxPoints}</span>
                                                     </div>
                                                 </div>
                                                 <Textarea
                                                     value={rubric.feedback}
                                                     onChange={(event) => updateFeedback(rubric.id, event.target.value)}
-                                                    rows={3}
-                                                    className="text-sm"
+                                                    rows={2}
+                                                    className="text-xs"
+                                                    placeholder="Feedback for this criterion..."
                                                     disabled={!canSave}
                                                 />
                                             </div>
@@ -499,72 +597,43 @@ export function AIGradingReview() {
                             </CardContent>
                         </Card>
 
+                        {/* Overall Feedback */}
+                        <Button
+                            onClick={handleGenerateFeedback}
+                            disabled={isGeneratingFeedback || !submissionFileUrl}
+                            className="w-full bg-purple-600 hover:bg-purple-700"
+                        >
+                            {isGeneratingFeedback ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    Extracting...
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles className="h-4 w-4 mr-2" />
+                                    Extract & Apply Annotations
+                                </>
+                            )}
+                        </Button>
+
+                        {/* Overall Feedback */}
                         <Card>
                             <CardHeader>
-                                <CardTitle>Overall Feedback</CardTitle>
-                                <CardDescription>General comments for the student</CardDescription>
+                                <CardTitle className="text-lg">Overall Feedback</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <Textarea
                                     value={overallFeedback}
                                     onChange={(event) => setOverallFeedback(event.target.value)}
-                                    rows={6}
+                                    rows={4}
                                     className="text-sm"
+                                    placeholder="General comments for the student..."
                                     disabled={!canSave}
                                 />
                             </CardContent>
                         </Card>
-                    </div>
 
-                    <div className="space-y-6">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Score Summary</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="text-center p-6 bg-green-50 rounded-lg border border-green-200">
-                                    <div className="text-5xl font-bold mb-2 text-green-700">{totalScore}</div>
-                                    <div className="text-sm text-green-600">out of {totalMaxPoints}</div>
-                                    <div className="text-2xl mt-2 font-semibold text-green-600">
-                                        {totalMaxPoints > 0 ? Math.round((totalScore / totalMaxPoints) * 100) : 0}%
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    {rubrics.map((rubric) => (
-                                        <div key={rubric.id} className="flex justify-between text-sm">
-                                            <span className="text-gray-600">{rubric.criteria}</span>
-                                            <span>
-                                                {rubric.score}/{rubric.maxPoints}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Submission</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                                    <FileText className="h-8 w-8 text-gray-400" />
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm truncate">Student submission file</p>
-                                        <p className="text-xs text-gray-500">{submissionFileUrl ? 'Available' : 'No file found'}</p>
-                                    </div>
-                                </div>
-                                {submissionFileUrl && (
-                                    <a href={submissionFileUrl} target="_blank" rel="noreferrer">
-                                        <Button variant="outline" className="w-full mt-3">
-                                            View Submission
-                                        </Button>
-                                    </a>
-                                )}
-                            </CardContent>
-                        </Card>
-
+                        {/* Action Buttons */}
                         <div className="space-y-3">
                             <Button onClick={handleSave} className="w-full" disabled={isSaving || !canSave}>
                                 {isSaving ? (
@@ -583,6 +652,8 @@ export function AIGradingReview() {
                                 Back
                             </Button>
                         </div>
+
+
                     </div>
                 </div>
             )}

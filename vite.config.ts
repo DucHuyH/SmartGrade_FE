@@ -17,5 +17,8 @@ export default defineConfig({
       '@': '/src'
     }
   },
-  assetsInclude: ['**/*.pdf', '**/*.svg', '**/*.csv']
+  assetsInclude: ['**/*.pdf', '**/*.svg', '**/*.csv', '**/pdf.worker.min.js'],
+  optimizeDeps: {
+    exclude: ['pdfjs-dist']
+  }
 })

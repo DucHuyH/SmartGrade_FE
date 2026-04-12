@@ -442,7 +442,6 @@ const parseSubmissionGradeDetailsPayload = (
 
 export const getSubmissionGrade = async (submissionId: string): Promise<SubmissionGradeDetails> => {
     const response = await axiosInstance.get(`/grading/${submissionId}`);
-    console.log(`Raw response for grade details of submission ${submissionId}:`, response.data);
 
     return parseSubmissionGradeDetailsPayload(response.data, submissionId);
 };
@@ -499,4 +498,118 @@ export const publishSubmissionGrades = async (submissionIds: (string | number)[]
 
 export const finalizeSubmissionGrade = async (gradeId: string | number): Promise<void> => {
     await axiosInstance.patch(`/grading/${gradeId}/finalize`);
+};
+
+export const getSubmissionFile = async (submissionId: string | number): Promise<Blob> => {
+    try {
+        const response = await axiosInstance.get(
+            `/submissions/${submissionId}/file`,
+            {
+                responseType: 'blob'
+            }
+        );
+        return response.data as Blob;
+    } catch (error) {
+        console.error(`Error fetching submission file for ${submissionId}:`, error);
+        throw error;
+    }
+};
+
+export const fetchFileBlob = async (fileUrl: string): Promise<Blob> => {
+    try {
+        if (!fileUrl || !fileUrl.trim()) {
+            throw new Error('File URL is empty');
+        }
+
+        // Get auth token if available
+        const token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        const headers: Record<string, string> = {
+            'Accept': 'application/pdf, application/octet-stream'
+        };
+
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(fileUrl, {
+            method: 'GET',
+            headers
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        return blob;
+    } catch (error) {
+        console.error(`[fetchFileBlob] Error fetching file from URL ${fileUrl}:`, error);
+        throw error;
+    }
+};
+
+// Generate feedback from submission file using AI/annotation analysis
+export interface AnalysisAnnotation {
+    id: string;
+    points: Array<{ x: number; y: number }>;
+    color: string;
+    width: number;
+}
+
+export interface FeedbackAnalysisRequest {
+    fileUrl: string;
+    annotations?: AnalysisAnnotation[];
+    submissionId?: string;
+}
+
+export interface FeedbackAnalysisResponse {
+    overallFeedback: string;
+    criteria?: Array<{
+        criteriaId: string;
+        feedback: string;
+        suggestedScore?: number;
+    }>;
+    summary?: string;
+}
+
+export const generateFeedbackFromSubmission = async (
+    request: FeedbackAnalysisRequest
+): Promise<FeedbackAnalysisResponse> => {
+    try {
+        console.log('[generateFeedbackFromSubmission] Request:', request);
+        // TODO: Replace with actual API endpoint
+        // This is a mock implementation that returns sample data
+        // In production, this should call your backend AI/analysis service
+
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Mock response - customize this based on your actual API
+        const mockResponse: FeedbackAnalysisResponse = {
+            overallFeedback: 'Great work! The submission demonstrates a good understanding of the concepts. The code is well-structured and the logic is clear. Consider adding more comments for better readability.',
+            criteria: [
+                {
+                    criteriaId: '1',
+                    feedback: 'Code structure is clean and follows best practices.',
+                    suggestedScore: 9,
+                },
+                {
+                    criteriaId: '2',
+                    feedback: 'Logic is correct and handles edge cases well.',
+                    suggestedScore: 9,
+                },
+                {
+                    criteriaId: '3',
+                    feedback: 'Documentation could be improved with more detailed comments.',
+                    suggestedScore: 8,
+                },
+            ],
+            summary: 'Overall excellent submission with minor improvements needed in documentation.',
+        };
+
+        return mockResponse;
+    } catch (error) {
+        console.error('[generateFeedbackFromSubmission] Error:', error);
+        throw error;
+    }
 };
