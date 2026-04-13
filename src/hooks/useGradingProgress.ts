@@ -52,12 +52,17 @@ export const useGradingProgress = (role: 'lecturer' | 'student' = 'lecturer') =>
         const unsubscribeResult = onGradingResult((payload: GradingResultPayload) => {
             // Handle individual grading result if needed
             console.log('Grading result received:', payload);
+            setProgress(prev => ({ 
+                ...prev, 
+                completed: prev.completed + 1 // Cứ có Result là tăng completed
+            }));
         });
 
         const unsubscribeError = onGradingError((payload: GradingErrorPayload) => {
             setProgress((prev) => ({
                 ...prev,
                 errors: [...prev.errors, payload],
+                failed: prev.failed + 1, // Cứ có Error là tăng failed
             }));
         });
 
