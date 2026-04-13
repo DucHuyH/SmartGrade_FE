@@ -15,8 +15,11 @@ import {
     getAssignmentSubmissions,
     LecturerSubmission,
     publishSubmissionGrades,
+    gradeSubmissionsWithAI,
 } from '../../services/lecturer/assignmentService';
 import { toast } from 'react-toastify';
+import { useGradingProgress } from '../../../hooks/useGradingProgress';
+import { GradingProgressModal } from '../../components/GradingProgressModal';
 
 const parseCoursePayload = (payload: unknown): Course | null => {
     const root = (payload as Record<string, unknown>)?.data ?? payload;
@@ -43,6 +46,19 @@ export function SubmissionTable() {
     const [publishingGrades, setPublishingGrades] = useState(false);
     const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<Set<string>>(new Set());
     const [pendingAction, setPendingAction] = useState<'ai' | 'publish' | null>(null);
+    const [showGradingProgress, setShowGradingProgress] = useState(false);
+
+    // Socket.io grading progress tracking
+    const {
+        total,
+        completed,
+        failed,
+        isActive,
+        currentSubmissionId,
+        errors,
+        progressPercentage,
+        resetProgress,
+    } = useGradingProgress('lecturer');
 
     useEffect(() => {
         if (!course_id || !assignment_id) {
@@ -110,9 +126,27 @@ export function SubmissionTable() {
 
     const handleConfirmAction = async () => {
         if (pendingAction === 'ai') {
+            if (!assignment_id) {
+                toast.error('Assignment information is missing.');
+                setPendingAction(null);
+                return;
+            }
+
             setAiGrading(true);
-            toast.info(`AI grading endpoint is not integrated yet. Selected ${selectedSubmissionIds.size} submissions.`);
-            setTimeout(() => setAiGrading(false), 600);
+            resetProgress();
+            setShowGradingProgress(true);
+
+            try {
+                const selectedIds = Array.from(selectedSubmissionIds);
+                await gradeSubmissionsWithAI(assignment_id, selectedIds);
+                toast.info(`Starting AI grading for ${selectedIds.length} submission(s)...`);
+                setSelectedSubmissionIds(new Set());
+            } catch (error) {
+                console.error('Error starting AI grading:', error);
+                toast.error('Failed to start AI grading. Please try again.');
+                setShowGradingProgress(false);
+                setAiGrading(false);
+            }
         }
 
         if (pendingAction === 'publish') {
@@ -142,6 +176,21 @@ export function SubmissionTable() {
 
         setPendingAction(null);
     };
+
+    // Close grading progress modal when grading is complete
+    useEffect(() => {
+        if (!isActive && showGradingProgress && total > 0) {
+            // Wait a bit before auto-closing to show completion state
+            const timer = setTimeout(() => {
+                // Optionally auto-close after a delay, or keep it open
+                // setShowGradingProgress(false);
+                // resetProgress();
+                setAiGrading(false);
+            }, 2000);
+
+            return () => clearTimeout(timer);
+        }
+    }, [isActive, showGradingProgress, total, resetProgress]);
 
     const handleViewSubmission = (submission: LecturerSubmission) => {
         if (!course_id || !assignment_id || submission.status === 'not_submitted') {
@@ -434,6 +483,18 @@ export function SubmissionTable() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Grading Progress Modal */}
+            <GradingProgressModal
+                isOpen={showGradingProgress}
+                total={total}
+                completed={completed}
+                failed={failed}
+                isActive={isActive}
+                progressPercentage={progressPercentage}
+                currentSubmissionId={currentSubmissionId}
+                errors={errors}
+            />
         </div>
     );
 }

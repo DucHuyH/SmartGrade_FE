@@ -613,3 +613,46 @@ export const generateFeedbackFromSubmission = async (
         throw error;
     }
 };
+
+export interface AIGradingRequest {
+    list_submission: (string | number)[];
+}
+
+export interface AIGradingResponse {
+    success: boolean;
+    message: string;
+}
+
+export const gradeSubmissionsWithAI = async (
+    assignmentId: string | number,
+    submissionIds: (string | number)[]
+): Promise<AIGradingResponse> => {
+    try {
+        console.log('[gradeSubmissionsWithAI] Starting AI grading for assignment:', assignmentId, 'submissions:', submissionIds);
+
+        const payload: AIGradingRequest = {
+            list_submission: submissionIds,
+        };
+
+        const response = await axiosInstance.post(
+            `/grading/ai/${assignmentId}`,
+            payload,
+            { withCredentials: true }
+        );
+
+        const data = response.data?.data ?? response.data;
+
+        if (data?.success) {
+            console.log('[gradeSubmissionsWithAI] Success:', data.message);
+            return {
+                success: true,
+                message: data.message || 'Grading process started',
+            };
+        }
+
+        throw new Error(data?.message || 'Failed to start AI grading');
+    } catch (error: any) {
+        console.error('[gradeSubmissionsWithAI] Error:', error.response?.data?.data?.message || error.message);
+        throw error;
+    }
+};
