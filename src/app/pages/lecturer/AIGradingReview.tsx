@@ -148,6 +148,7 @@ export function AIGradingReview() {
                     const gradeDetails = await getSubmissionGrade(routeSubmissionId);
                     setGradeId(gradeDetails.grade_id);
                     setOverallFeedback(gradeDetails.feedback || '');
+                    setManualFinalScore(gradeDetails.final_score || 0);
                     setRubrics(buildRubricRows(assignmentDetails, gradeDetails.criteria_scores));
 
                     if (gradeDetails.status) {
@@ -598,7 +599,7 @@ export function AIGradingReview() {
                         </Card>
 
                         {/* Overall Feedback */}
-                        <Button
+                        {/* <Button
                             onClick={handleGenerateFeedback}
                             disabled={isGeneratingFeedback || !submissionFileUrl}
                             className="w-full bg-purple-600 hover:bg-purple-700"
@@ -614,7 +615,7 @@ export function AIGradingReview() {
                                     Extract & Apply Annotations
                                 </>
                             )}
-                        </Button>
+                        </Button> */}
 
                         {/* Overall Feedback */}
                         <Card>
