@@ -309,3 +309,189 @@ export const getSubmissionGrade = async (submissionId: string): Promise<StudentS
         throw error;
     }
 };
+
+export type StudentDashboardStats = {
+    enrolled_courses: number;
+    due_soon_assignments: number;
+    upcoming_assignments: number;
+    overdue_assignments: number;
+    submitted_assignments: number;
+    graded_assignments: number;
+};
+
+export const getDashboardStats = async (): Promise<StudentDashboardStats> => {
+    try {
+        const response = await axiosInstance.get('/dashboard/stats');
+
+        if (!response.data?.data?.data) {
+            throw new Error('Invalid response format: missing data field');
+        }
+
+        const statsData = response.data.data.data as Record<string, unknown>;
+
+        return {
+            enrolled_courses: Number(statsData.enrolled_courses ?? 0),
+            due_soon_assignments: Number(statsData.due_soon_assignments ?? 0),
+            upcoming_assignments: Number(statsData.upcoming_assignments ?? 0),
+            overdue_assignments: Number(statsData.overdue_assignments ?? 0),
+            submitted_assignments: Number(statsData.submitted_assignments ?? 0),
+            graded_assignments: Number(statsData.graded_assignments ?? 0),
+        };
+    } catch (error) {
+        console.error('Error fetching dashboard statistics:', error);
+        throw error;
+    }
+};
+
+export type DashboardAssignmentItem = {
+    assignment_id: number;
+    title: string;
+    course: {
+        course_id: number;
+        name: string;
+    };
+    due_date: string;
+    max_score: number;
+    created_at: string;
+};
+
+export type DashboardAssignmentPagination = {
+    page: number;
+    limit: number;
+    totalItems: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+};
+
+export type GetDashboardAssignmentsResult = {
+    assignments: DashboardAssignmentItem[];
+    pagination: DashboardAssignmentPagination;
+};
+
+export const getUpcomingAssignments = async (
+    page: number = 1,
+    limit: number = 10
+): Promise<GetDashboardAssignmentsResult> => {
+    try {
+        const response = await axiosInstance.get('/dashboard/assignment/upcoming', {
+            params: { page, limit },
+        })
+
+        if (!response.data?.data) {
+            throw new Error('Invalid response format: missing data field');
+        }
+
+        const data = response.data.data.data;
+        console.log('Raw response for upcoming assignments:', data);
+        const assignments = Array.isArray(data.assignments) ? data.assignments : [];
+        const pagination = data.pagination || { page, limit, totalItems: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false };
+
+        return {
+            assignments,
+            pagination: {
+                page: Number(pagination.page ?? 1),
+                limit: Number(pagination.limit ?? limit),
+                totalItems: Number(pagination.totalItems ?? 0),
+                totalPages: Number(pagination.totalPages ?? 0),
+                hasNextPage: Boolean(pagination.hasNextPage ?? false),
+                hasPrevPage: Boolean(pagination.hasPrevPage ?? false),
+            },
+        };
+    } catch (error) {
+        console.error('Error fetching upcoming assignments:', error);
+        throw error;
+    }
+};
+
+export const getDueSoonAssignments = async (
+    page: number = 1,
+    limit: number = 10
+): Promise<GetDashboardAssignmentsResult> => {
+    try {
+        const response = await axiosInstance.get('/dashboard/assignment/duesoon', {
+            params: { page, limit },
+        });
+
+        if (!response.data?.data) {
+            throw new Error('Invalid response format: missing data field');
+        }
+
+        const data = response.data.data.data;
+        const assignments = Array.isArray(data.assignments) ? data.assignments : [];
+        const pagination = data.pagination || { page, limit, totalItems: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false };
+
+        return {
+            assignments,
+            pagination: {
+                page: Number(pagination.page ?? 1),
+                limit: Number(pagination.limit ?? limit),
+                totalItems: Number(pagination.totalItems ?? 0),
+                totalPages: Number(pagination.totalPages ?? 0),
+                hasNextPage: Boolean(pagination.hasNextPage ?? false),
+                hasPrevPage: Boolean(pagination.hasPrevPage ?? false),
+            },
+        };
+    } catch (error) {
+        console.error('Error fetching due soon assignments:', error);
+        throw error;
+    }
+};
+
+export type GradedAssignmentItem = {
+    assignment_id: number;
+    title: string;
+    course: {
+        course_id: number;
+        name: string;
+    };
+    due_date: string;
+    max_score: number;
+    submission_id: number;
+    attempt_count: number;
+    submitted_at: string;
+    final_score: number | null;
+    status: string;
+    feedback: string | null;
+    graded_at: string;
+};
+
+export type GetGradedAssignmentsResult = {
+    assignments: GradedAssignmentItem[];
+    pagination: DashboardAssignmentPagination;
+};
+
+export const getGradedAssignments = async (
+    page: number = 1,
+    limit: number = 10
+): Promise<GetGradedAssignmentsResult> => {
+    try {
+        const response = await axiosInstance.get('/dashboard/assignment/graded', {
+            params: { page, limit },
+        });
+
+        if (!response.data?.data) {
+            throw new Error('Invalid response format: missing data field');
+        }
+
+        const data = response.data.data.data;
+        console.log('Raw response for graded assignments:', data);
+        const assignments = Array.isArray(data.assignments) ? data.assignments : [];
+        const pagination = data.pagination || { page, limit, totalItems: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false };
+
+        return {
+            assignments,
+            pagination: {
+                page: Number(pagination.page ?? 1),
+                limit: Number(pagination.limit ?? limit),
+                totalItems: Number(pagination.totalItems ?? 0),
+                totalPages: Number(pagination.totalPages ?? 0),
+                hasNextPage: Boolean(pagination.hasNextPage ?? false),
+                hasPrevPage: Boolean(pagination.hasPrevPage ?? false),
+            },
+        };
+    } catch (error) {
+        console.error('Error fetching graded assignments:', error);
+        throw error;
+    }
+};

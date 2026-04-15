@@ -1,9 +1,9 @@
 /**
  * Grading System - Defines grade scales and utilities
- * Scale: A+ (95-100), A (90-94), A- (87-89), B+ (84-86), B (80-83), B- (77-79), C+ (74-76), C (70-73), D (60-69), F (<60)
+ * Scale (10-point): A+ (95-100), A (85-94), A- (80-84), B+ (75-79), B (70-74), B- (65-69), C+ (60-64), C (55-59), C- (45-54), D (40-44), F (0-39)
  */
 
-export type GradeLetter = 'A+' | 'A' | 'A-' | 'B+' | 'B' | 'B-' | 'C+' | 'C' | 'D' | 'F';
+export type GradeLetter = 'A+' | 'A' | 'A-' | 'B+' | 'B' | 'B-' | 'C+' | 'C' | 'C-' | 'D' | 'F';
 
 export interface GradeInfo {
     letter: GradeLetter;
@@ -33,7 +33,7 @@ const GRADE_SCALE: Record<GradeLetter, GradeInfo> = {
         bgColor: 'bg-emerald-100',
         textColor: 'text-emerald-700',
         hexColor: '#10B981',
-        minPercentage: 90,
+        minPercentage: 85,
         maxPercentage: 94,
         description: 'Excellent',
     },
@@ -43,8 +43,8 @@ const GRADE_SCALE: Record<GradeLetter, GradeInfo> = {
         bgColor: 'bg-teal-100',
         textColor: 'text-teal-700',
         hexColor: '#14B8A6',
-        minPercentage: 87,
-        maxPercentage: 89,
+        minPercentage: 80,
+        maxPercentage: 84,
         description: 'Very Good',
     },
     'B+': {
@@ -53,8 +53,8 @@ const GRADE_SCALE: Record<GradeLetter, GradeInfo> = {
         bgColor: 'bg-blue-100',
         textColor: 'text-blue-700',
         hexColor: '#2563EB',
-        minPercentage: 84,
-        maxPercentage: 86,
+        minPercentage: 75,
+        maxPercentage: 79,
         description: 'Good',
     },
     'B': {
@@ -63,8 +63,8 @@ const GRADE_SCALE: Record<GradeLetter, GradeInfo> = {
         bgColor: 'bg-blue-100',
         textColor: 'text-blue-700',
         hexColor: '#3B82F6',
-        minPercentage: 80,
-        maxPercentage: 83,
+        minPercentage: 70,
+        maxPercentage: 74,
         description: 'Good',
     },
     'B-': {
@@ -73,8 +73,8 @@ const GRADE_SCALE: Record<GradeLetter, GradeInfo> = {
         bgColor: 'bg-sky-100',
         textColor: 'text-sky-700',
         hexColor: '#0284C7',
-        minPercentage: 77,
-        maxPercentage: 79,
+        minPercentage: 65,
+        maxPercentage: 69,
         description: 'Satisfactory',
     },
     'C+': {
@@ -83,8 +83,8 @@ const GRADE_SCALE: Record<GradeLetter, GradeInfo> = {
         bgColor: 'bg-amber-100',
         textColor: 'text-amber-700',
         hexColor: '#D97706',
-        minPercentage: 74,
-        maxPercentage: 76,
+        minPercentage: 60,
+        maxPercentage: 64,
         description: 'Average',
     },
     'C': {
@@ -93,28 +93,38 @@ const GRADE_SCALE: Record<GradeLetter, GradeInfo> = {
         bgColor: 'bg-amber-100',
         textColor: 'text-amber-700',
         hexColor: '#F59E0B',
-        minPercentage: 70,
-        maxPercentage: 73,
+        minPercentage: 55,
+        maxPercentage: 59,
         description: 'Average',
     },
-    'D': {
-        letter: 'D',
+    'C-': {
+        letter: 'C-',
         color: 'orange-600',
         bgColor: 'bg-orange-100',
         textColor: 'text-orange-700',
-        hexColor: '#F97316',
-        minPercentage: 60,
-        maxPercentage: 69,
+        hexColor: '#EA580C',
+        minPercentage: 45,
+        maxPercentage: 54,
         description: 'Below Average',
     },
-    'F': {
-        letter: 'F',
+    'D': {
+        letter: 'D',
         color: 'red-600',
         bgColor: 'bg-red-100',
         textColor: 'text-red-700',
-        hexColor: '#EF4444',
+        hexColor: '#DC2626',
+        minPercentage: 40,
+        maxPercentage: 44,
+        description: 'Poor',
+    },
+    'F': {
+        letter: 'F',
+        color: 'red-700',
+        bgColor: 'bg-red-200',
+        textColor: 'text-red-800',
+        hexColor: '#7F1D1D',
         minPercentage: 0,
-        maxPercentage: 59,
+        maxPercentage: 39,
         description: 'Fail',
     },
 };
@@ -130,14 +140,15 @@ export const getGradeLetter = (score: number | null, maxScore: number | null): G
     const percentage = (score / maxScore) * 100;
 
     if (percentage >= 95) return 'A+';
-    if (percentage >= 90) return 'A';
-    if (percentage >= 87) return 'A-';
-    if (percentage >= 84) return 'B+';
-    if (percentage >= 80) return 'B';
-    if (percentage >= 77) return 'B-';
-    if (percentage >= 74) return 'C+';
-    if (percentage >= 70) return 'C';
-    if (percentage >= 60) return 'D';
+    if (percentage >= 85) return 'A';
+    if (percentage >= 80) return 'A-';
+    if (percentage >= 75) return 'B+';
+    if (percentage >= 70) return 'B';
+    if (percentage >= 65) return 'B-';
+    if (percentage >= 60) return 'C+';
+    if (percentage >= 55) return 'C';
+    if (percentage >= 45) return 'C-';
+    if (percentage >= 40) return 'D';
     return 'F';
 };
 
@@ -167,10 +178,10 @@ export const calculatePercentage = (score: number | null, maxScore: number | nul
 };
 
 /**
- * Check if grade is passing (C or above)
+ * Check if grade is passing (C- or above)
  */
 export const isPassing = (gradeLetter: GradeLetter): boolean => {
-    const passingGrades: GradeLetter[] = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C'];
+    const passingGrades: GradeLetter[] = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-'];
     return passingGrades.includes(gradeLetter);
 };
 
@@ -178,7 +189,7 @@ export const isPassing = (gradeLetter: GradeLetter): boolean => {
  * Get all grade letters in order
  */
 export const getAllGradeLetters = (): GradeLetter[] => {
-    return ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'D', 'F'];
+    return ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D', 'F'];
 };
 
 /**
