@@ -106,6 +106,8 @@ export function ViewGrade() {
                 const gradeData = await getSubmissionGrade(submission_id);
                 setGrade(gradeData);
 
+                console.log('Fetched grade details:', gradeData);
+
 
                 // Determine assignment_id - prefer from navState, fallback to gradeData
                 const assignmentId = navState?.assignmentId ?? gradeData.assignment_id;

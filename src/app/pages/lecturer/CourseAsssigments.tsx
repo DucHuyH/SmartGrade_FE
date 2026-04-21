@@ -238,6 +238,7 @@ export function CourseAssignments() {
 
         setIsDeleting(true);
         try {
+            console.log(`Attempting to delete assignment ${selectedAssignment.assignment_id}...`);
             await deleteAssignment(selectedAssignment.assignment_id);
             setConfirmDeleteOpen(false);
             setSelectedAssignment(null);

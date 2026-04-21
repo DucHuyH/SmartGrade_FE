@@ -289,7 +289,9 @@ export const updateAssignment = async (
 
 export const deleteAssignment = async (assignmentId: string) => {
     try {
+
         await axiosInstance.delete(`/assignments/${assignmentId}/`);
+        console.log(`Assignment ${assignmentId} deleted successfully.`);
     } catch (error) {
         console.error(
             `Error deleting assignment ${assignmentId}:`, error
@@ -309,6 +311,7 @@ export type SubmissionGradeDetails = {
     grade_id: string | null;
     submission_id: string;
     final_score: number | null;
+    max_score: number | null;
     feedback: string;
     status: string;
     has_published: boolean;
@@ -319,7 +322,7 @@ export type SubmissionGradeDetails = {
 export type SaveSubmissionGradePayload = {
     final_score: number;
     feedback: string;
-    criteria_scores: Array<{
+    criteria_scores?: Array<{
         criteria_id: string;
         score: number;
         feedback: string;
@@ -429,6 +432,7 @@ const parseSubmissionGradeDetailsPayload = (
                 : null,
         submission_id: submissionId,
         final_score: toNullableNumber(gradeRoot.final_score ?? gradeRoot.score),
+        max_score: toNullableNumber(gradeRoot.max_score),
         feedback: typeof gradeRoot.feedback === 'string' ? gradeRoot.feedback : '',
         status: String(gradeRoot.status ?? root.status ?? 'pending').toLowerCase(),
         has_published: toBoolean(gradeRoot.has_published ?? gradeRoot.is_published),
@@ -442,6 +446,7 @@ const parseSubmissionGradeDetailsPayload = (
 
 export const getSubmissionGrade = async (submissionId: string): Promise<SubmissionGradeDetails> => {
     const response = await axiosInstance.get(`/grading/${submissionId}`);
+    console.log(`Raw response for grade details of submission ${submissionId}:`, response.data);
 
     return parseSubmissionGradeDetailsPayload(response.data, submissionId);
 };
@@ -450,12 +455,21 @@ export const saveSubmissionGrade = async (
     submissionId: string,
     payload: SaveSubmissionGradePayload
 ): Promise<SubmissionGradeDetails> => {
-    const requestPayload = {
+    const requestPayload: Record<string, unknown> = {
         final_score: payload.final_score,
         feedback: payload.feedback,
-        rubric_scores: payload.criteria_scores,
+        // rubric_scores: payload.criteria_scores?.map(criterion => ({
+        //     criteria_id: criterion.criteria_id,
+        //     score: criterion.score,
+        //     feedback: criterion.feedback,
+        // })) ?? [],
     };
 
+    if (payload.criteria_scores && payload.criteria_scores.length > 0) {
+        requestPayload.rubric_scores = payload.criteria_scores;
+    }
+
+    console.log(`Saving grade for submission ${submissionId} with payload:`, requestPayload);
     const response = await requestWithFallback(
         [`/grading/${submissionId}`, `/grading`],
         (endpoint) => axiosInstance.post(endpoint, requestPayload)

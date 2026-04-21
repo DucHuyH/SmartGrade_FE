@@ -5,9 +5,27 @@ export interface Criteria {
     description: string
     max_score: number
     weight: number
+    ranges?: CriteriaRange[]
 }
 
 export type Criteia = Criteria
+
+export interface CriteriaRange {
+    range_id?: string | number
+    criteria_id?: string | number
+    level: string
+    min_score: number
+    max_score: number
+    description: string
+    created_at?: string
+}
+
+export interface CriteriaRangePayload {
+    level: string
+    min_score: number
+    max_score: number
+    description: string
+}
 
 export interface Rubric {
     rubric_id: string | number
@@ -16,9 +34,14 @@ export interface Rubric {
     criteria: Criteria[]
 }
 
-export type CriteriaPayload = Omit<Criteria, 'criteria_id' | 'rubric_id'> & {
+export type CriteriaPayload = {
     criteria_id?: Criteria['criteria_id']
     rubric_id?: Criteria['rubric_id']
+    criteria_name: string
+    description: string
+    weight: number
+    max_score?: number
+    ranges?: CriteriaRangePayload[]
 }
 
 export type RubricPayload = Omit<Rubric, 'rubric_id' | 'assignment_id' | 'criteria'> & {

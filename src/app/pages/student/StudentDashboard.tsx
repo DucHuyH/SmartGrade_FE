@@ -364,7 +364,7 @@ export function StudentDashboard() {
                 {gradedData.assignments.map((item) => (
                   <Link
                     key={item.submission_id}
-                    to={`/student/submissions/${item.assignment_id}/grade`}
+                    to={`/student/submissions/${item.submission_id}/grade`}
                     state={{
                       courseName: item.course.name,
                       course_id: item.course.course_id,

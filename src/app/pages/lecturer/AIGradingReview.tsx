@@ -4,11 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
-import { Separator } from '../../components/ui/separator';
 import { Badge } from '../../components/ui/badge';
 import { Breadcrumb } from '../../components/Breadcrumb';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { FileText, Loader2, Save, User, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Loader2, Save, User, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { Assignment } from '../../../model/assignment';
 import { SimplePDFViewer } from '../../components/SimplePDFViewer';
@@ -21,18 +20,8 @@ import {
     LecturerSubmission,
     publishSubmissionGrades,
     saveSubmissionGrade,
-    SubmissionGradeCriterion,
     generateFeedbackFromSubmission,
-    AnalysisAnnotation,
 } from '../../services/lecturer/assignmentService';
-
-type GradingRubricRow = {
-    id: string;
-    criteria: string;
-    maxPoints: number;
-    score: number;
-    feedback: string;
-};
 
 type PageLocationState = {
     courseTitle?: string;
@@ -63,37 +52,6 @@ const normalizeMaxScore = (value: unknown): number => {
     return 0;
 };
 
-const buildRubricRows = (
-    assignment: Assignment | null,
-    gradeCriteria: SubmissionGradeCriterion[]
-): GradingRubricRow[] => {
-    const assignmentCriteria = assignment?.rubric?.criteria ?? [];
-
-    if (assignmentCriteria.length > 0) {
-        return assignmentCriteria.map((criterion) => {
-            const matchedGrade = gradeCriteria.find(
-                (item) => String(item.criteria_id) === String(criterion.criteria_id)
-            );
-
-            return {
-                id: String(criterion.criteria_id),
-                criteria: criterion.criteria_name,
-                maxPoints: normalizeMaxScore(criterion.max_score),
-                score: matchedGrade?.score ?? 0,
-                feedback: matchedGrade?.feedback ?? '',
-            };
-        });
-    }
-
-    return gradeCriteria.map((criterion, index) => ({
-        id: String(criterion.criteria_id ?? index),
-        criteria: criterion.criteria_name || `Criteria ${index + 1}`,
-        maxPoints: normalizeMaxScore(criterion.max_score),
-        score: normalizeMaxScore(criterion.score),
-        feedback: criterion.feedback,
-    }));
-};
-
 export function AIGradingReview() {
     const { course_id, assignment_id, submission_id } = useParams();
     const navigate = useNavigate();
@@ -104,9 +62,9 @@ export function AIGradingReview() {
     const [assignment, setAssignment] = useState<Assignment | null>(null);
     const [allSubmissions, setAllSubmissions] = useState<LecturerSubmission[]>([]);
     const [currentSubmission, setCurrentSubmission] = useState<LecturerSubmission | null>(null);
-    const [rubrics, setRubrics] = useState<GradingRubricRow[]>([]);
     const [overallFeedback, setOverallFeedback] = useState('');
     const [manualFinalScore, setManualFinalScore] = useState<number>(0);
+    const [apiMaxScore, setApiMaxScore] = useState<number | null>(null);
     const [gradeId, setGradeId] = useState<string | null>(null);
     const [submissionStatus, setSubmissionStatus] = useState<string>(
         String(pageState?.submissionStatus ?? 'pending').toLowerCase()
@@ -115,7 +73,6 @@ export function AIGradingReview() {
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
-    const [annotations, setAnnotations] = useState<AnalysisAnnotation[]>([]);
 
     useEffect(() => {
         if (!assignment_id || !routeSubmissionId) {
@@ -141,15 +98,16 @@ export function AIGradingReview() {
                     setCurrentSubmission(matchedSubmission);
                     setSubmissionStatus(matchedSubmission.status);
                     setIsRegrade(matchedSubmission.has_published || Boolean(pageState?.hasPublished));
-                    setManualFinalScore(0);
+                    setManualFinalScore(matchedSubmission.final_score ?? 0);
                 }
 
                 try {
                     const gradeDetails = await getSubmissionGrade(routeSubmissionId);
+
                     setGradeId(gradeDetails.grade_id);
                     setOverallFeedback(gradeDetails.feedback || '');
                     setManualFinalScore(gradeDetails.final_score || 0);
-                    setRubrics(buildRubricRows(assignmentDetails, gradeDetails.criteria_scores));
+                    setApiMaxScore(gradeDetails.max_score);
 
                     if (gradeDetails.status) {
                         setSubmissionStatus(gradeDetails.status.toLowerCase());
@@ -162,7 +120,7 @@ export function AIGradingReview() {
                     setGradeId(null);
                     setOverallFeedback('');
                     setManualFinalScore(0);
-                    setRubrics(buildRubricRows(assignmentDetails, []));
+                    setApiMaxScore(null);
                 }
             } catch (error) {
                 console.error('Error loading grading review data:', error);
@@ -175,52 +133,21 @@ export function AIGradingReview() {
         loadData();
     }, [assignment_id, pageState?.hasPublished, routeSubmissionId]);
 
-    const updateScore = (id: string, score: number) => {
-        setRubrics((prev) =>
-            prev.map((item) => {
-                if (item.id !== id) {
-                    return item;
-                }
-
-                const boundedScore = Number.isFinite(score)
-                    ? Math.max(0, Math.min(score, item.maxPoints))
-                    : 0;
-
-                return {
-                    ...item,
-                    score: boundedScore,
-                };
-            })
-        );
-    };
-
-    const updateFeedback = (id: string, feedback: string) => {
-        setRubrics((prev) =>
-            prev.map((item) =>
-                item.id === id
-                    ? {
-                        ...item,
-                        feedback,
-                    }
-                    : item
-            )
-        );
-    };
-
     const totalScore = useMemo(() => {
-        if (rubrics.length === 0) {
-            return manualFinalScore;
+        if (!Number.isFinite(manualFinalScore)) {
+            return 0;
         }
-        return rubrics.reduce((sum, item) => sum + item.score, 0);
-    }, [rubrics, manualFinalScore]);
+
+        return Math.max(0, manualFinalScore);
+    }, [manualFinalScore]);
 
     const totalMaxPoints = useMemo(() => {
-        if (rubrics.length > 0) {
-            return rubrics.reduce((sum, item) => sum + item.maxPoints, 0);
+        // Always use API max_score, with fallback to assignment max_score
+        if (apiMaxScore !== null) {
+            return apiMaxScore;
         }
-
         return assignment?.max_score ?? pageState?.assignmentMaxScore ?? 0;
-    }, [assignment?.max_score, pageState?.assignmentMaxScore, rubrics]);
+    }, [apiMaxScore, assignment?.max_score, pageState?.assignmentMaxScore]);
 
     const currentSubmissionIndex = useMemo(() => {
         if (!currentSubmission) return -1;
@@ -262,16 +189,9 @@ export function AIGradingReview() {
 
         setIsSaving(true);
         try {
-            const criteriaScores = rubrics.length === 0 ? [] : rubrics.map((item) => ({
-                criteria_id: item.id,
-                score: item.score,
-                feedback: item.feedback,
-            }));
-
             const savedGrade = await saveSubmissionGrade(routeSubmissionId, {
                 final_score: totalScore,
                 feedback: overallFeedback,
-                criteria_scores: criteriaScores,
             });
 
             setGradeId(savedGrade.grade_id);
@@ -319,34 +239,13 @@ export function AIGradingReview() {
             // });
             const response = await generateFeedbackFromSubmission({
                 fileUrl: submissionFileUrl,
-                annotations: annotations,
+                annotations: [],
                 submissionId: routeSubmissionId,
             });
 
             // Update overall feedback
             if (response.overallFeedback) {
                 setOverallFeedback(response.overallFeedback);
-            }
-
-            // Update rubrics with suggested scores and feedback
-            if (response.criteria && response.criteria.length > 0) {
-                setRubrics((prevRubrics) =>
-                    prevRubrics.map((rubric) => {
-                        const suggestion = response.criteria?.find(
-                            (c) => String(c.criteriaId) === String(rubric.id)
-                        );
-
-                        if (suggestion) {
-                            return {
-                                ...rubric,
-                                score: suggestion.suggestedScore ?? rubric.score,
-                                feedback: suggestion.feedback || rubric.feedback,
-                            };
-                        }
-
-                        return rubric;
-                    })
-                );
             }
 
             toast.success('Feedback generated successfully!');
@@ -522,79 +421,35 @@ export function AIGradingReview() {
                                     </div>
                                 </div>
 
-                                <div className="space-y-2">
-                                    {rubrics.map((rubric) => (
-                                        <div key={rubric.id} className="flex justify-between text-sm">
-                                            <span className="text-gray-600 truncate">{rubric.criteria}</span>
-                                            <span className="font-medium">
-                                                {rubric.score}/{rubric.maxPoints}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
+                                <p className="text-xs text-gray-500 text-center">Direct total-score grading mode</p>
                             </CardContent>
                         </Card>
 
-                        {/* Grading Rubrics */}
+                        {/* Direct Grading */}
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-lg">Grading Rubrics</CardTitle>
-                                <CardDescription className="text-xs">Edit score and feedback per criterion</CardDescription>
+                                <CardTitle className="text-lg">Direct Grading</CardTitle>
+                                <CardDescription className="text-xs">Enter final score directly</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                {rubrics.length === 0 ? (
-                                    <div className="space-y-4">
-                                        <div className="flex items-end gap-3 p-3 bg-blue-50 rounded-lg">
-                                            <div className="flex-1">
-                                                <label className="text-sm font-medium text-gray-700">Final Score</label>
-                                                <p className="text-xs text-gray-500 mt-1">Enter total score manually</p>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <Input
-                                                    type="number"
-                                                    value={manualFinalScore}
-                                                    onChange={(event) => setManualFinalScore(Number(event.target.value))}
-                                                    className="w-20 text-center"
-                                                    max={totalMaxPoints}
-                                                    min={0}
-                                                    disabled={!canSave}
-                                                />
-                                                <span className="text-sm text-gray-600 min-w-fit">/ {totalMaxPoints}</span>
-                                            </div>
-                                        </div>
+                                <div className="flex items-end gap-3 p-3 bg-blue-50 rounded-lg">
+                                    <div className="flex-1">
+                                        <label className="text-sm font-medium text-gray-700">Final Score</label>
+                                        <p className="text-xs text-gray-500 mt-1">Enter total score manually</p>
                                     </div>
-                                ) : (
-                                    rubrics.map((rubric, index) => (
-                                        <div key={rubric.id}>
-                                            {index > 0 && <Separator className="my-4" />}
-                                            <div className="space-y-2">
-                                                <div className="flex justify-between items-center">
-                                                    <h4 className="text-sm font-medium">{rubric.criteria}</h4>
-                                                    <div className="flex items-center gap-2">
-                                                        <Input
-                                                            type="number"
-                                                            value={rubric.score}
-                                                            onChange={(event) => updateScore(rubric.id, Number(event.target.value))}
-                                                            className="w-14 text-center text-sm"
-                                                            max={rubric.maxPoints}
-                                                            min={0}
-                                                            disabled={!canSave}
-                                                        />
-                                                        <span className="text-xs text-gray-600">/ {rubric.maxPoints}</span>
-                                                    </div>
-                                                </div>
-                                                <Textarea
-                                                    value={rubric.feedback}
-                                                    onChange={(event) => updateFeedback(rubric.id, event.target.value)}
-                                                    rows={2}
-                                                    className="text-xs"
-                                                    placeholder="Feedback for this criterion..."
-                                                    disabled={!canSave}
-                                                />
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
+                                    <div className="flex items-center gap-2">
+                                        <Input
+                                            type="number"
+                                            value={manualFinalScore}
+                                            onChange={(event) => setManualFinalScore(Number(event.target.value))}
+                                            className="w-20 text-center"
+                                            max={totalMaxPoints}
+                                            min={0}
+                                            disabled={!canSave}
+                                        />
+                                        <span className="text-sm text-gray-600 min-w-fit">/ {totalMaxPoints}</span>
+                                    </div>
+                                </div>
                             </CardContent>
                         </Card>
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -6,24 +6,26 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { ArrowLeft, Download, FileText, Loader2, Save, Upload, X, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Download, FileText, Loader2, Save, Upload, X, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { Course } from '../../../model';
 import { Assignment } from '../../../model/assignment';
 import { CriteriaPayload, RubricPayload } from '../../../model/rubric';
 import { getAssignmentDetails, updateAssignment } from '../../services/lecturer/assignmentService';
 import { getAllCourses } from '../../services/lecturer/courseService';
 import { toast } from 'react-toastify';
+import { ScoringLevel, ScoringLevelsEditor, createDefaultScoringLevels } from '../../components/ScoringLevelsEditor';
 
 const FILE_TYPE_OPTIONS = ['pdf', 'docx', 'xlsx', 'txt']
 const DEADLINE_OFFSET_MINUTES = 5
 
 type CriteriaDraft = CriteriaPayload
+type NormalizedCriteriaDraft = CriteriaDraft & { sourceIndex: number }
 
 const createEmptyCriteria = (): CriteriaDraft => ({
   criteria_name: '',
   description: '',
   max_score: 0,
-  weight: 1,
+  weight: 0,
 })
 
 const toIsoDate = (value: string) => {
@@ -145,6 +147,8 @@ export function EditAssignment() {
   const [isCurrentSolutionFileRemoved, setIsCurrentSolutionFileRemoved] = useState(false);
   const [isDraggingQuestionFile, setIsDraggingQuestionFile] = useState(false);
   const [isDraggingSolutionFile, setIsDraggingSolutionFile] = useState(false);
+  const [expandedCriteria, setExpandedCriteria] = useState<number | null>(null);
+  const [scoringLevels, setScoringLevels] = useState<{ [key: number]: ScoringLevel[] }>({});
   const [criteriaList, setCriteriaList] = useState<CriteriaDraft[]>([
     createEmptyCriteria(),
   ]);
@@ -191,18 +195,37 @@ export function EditAssignment() {
         setQuestionFileUrl(parsedAssignment.question_file_url ?? '');
         setSolutionFileUrl(parsedAssignment.solution_file_url ?? '');
         if (parsedAssignment.rubric?.criteria?.length) {
+          const nextScoringLevels: { [key: number]: ScoringLevel[] } = {}
           setCriteriaList(
-            parsedAssignment.rubric.criteria.map((criteria) => ({
-              criteria_id: criteria.criteria_id,
-              rubric_id: criteria.rubric_id,
-              criteria_name: criteria.criteria_name,
-              description: criteria.description,
-              max_score: criteria.max_score,
-              weight: criteria.weight,
-            })),
+            parsedAssignment.rubric.criteria.map((criteria, index) => {
+              const rawWeight = Number(criteria.weight) || 0
+              const percentageWeight = rawWeight <= 1 ? rawWeight * 100 : rawWeight
+              const ranges = Array.isArray(criteria.ranges) && criteria.ranges.length > 0
+                ? criteria.ranges.map((range, rangeIndex) => ({
+                  id: String(range.range_id ?? `${criteria.criteria_id ?? index}-${rangeIndex}`),
+                  level: String(range.level ?? '').trim() || `Level ${rangeIndex + 1}`,
+                  description: String(range.description ?? '').trim(),
+                  minScore: Number(range.min_score) || 0,
+                  maxScore: Number(range.max_score) || 0,
+                }))
+                : createDefaultScoringLevels()
+
+              nextScoringLevels[index] = ranges
+
+              return {
+                criteria_id: criteria.criteria_id,
+                rubric_id: criteria.rubric_id,
+                criteria_name: criteria.criteria_name,
+                description: criteria.description,
+                max_score: criteria.max_score,
+                weight: Number(percentageWeight.toFixed(2)),
+              }
+            }),
           )
+          setScoringLevels(nextScoringLevels)
         } else {
           setCriteriaList([createEmptyCriteria()])
+          setScoringLevels({})
         }
         setIsCurrentQuestionFileRemoved(false);
         setIsCurrentSolutionFileRemoved(false);
@@ -261,20 +284,24 @@ export function EditAssignment() {
   const normalizedRubricCriteria = useMemo(
     () =>
       criteriaList
-        .map((criteria) => ({
+        .map((criteria, index) => ({
           ...criteria,
+          sourceIndex: index,
           criteria_name: criteria.criteria_name.trim(),
           description: criteria.description.trim(),
           max_score: Number(criteria.max_score) || 0,
-          weight: Number(criteria.weight) || 1,
+          weight: Number(criteria.weight) || 0,
         }))
-        .filter((criteria) => criteria.criteria_name || criteria.description || criteria.max_score > 0),
+        .filter((criteria) => (Number(criteria.weight) || 0) > 0),
     [criteriaList],
   )
   const hasRubricInput = normalizedRubricCriteria.length > 0
   const rubricPoints = useMemo(
-    () => normalizedRubricCriteria.reduce((sum, criteria) => sum + (Number(criteria.max_score) || 0), 0),
-    [normalizedRubricCriteria],
+    () => {
+      const totalPts = Number(totalPoints) || 100
+      return normalizedRubricCriteria.reduce((sum, criteria) => sum + Math.round((Number(criteria.weight) / 100) * totalPts), 0)
+    },
+    [normalizedRubricCriteria, totalPoints],
   )
 
   const toggleFileType = (fileType: string) => {
@@ -312,31 +339,42 @@ export function EditAssignment() {
     )
   }
 
-  const updateCriteriaMaxScore = (index: number, value: string) => {
+  const updateCriteriaWeight = (index: number, value: string) => {
     const parsed = Number(value)
+    const percentage = Number.isFinite(parsed) && parsed > 0 ? parsed : 0
     setCriteriaList((prev) =>
       prev.map((criteria, currentIndex) =>
         currentIndex === index
           ? {
             ...criteria,
-            max_score: Number.isFinite(parsed) ? parsed : 0,
+            weight: Math.min(percentage, 100),
           }
           : criteria,
       ),
     )
   }
 
-  const getRubricPayload = (criteriaItems: CriteriaDraft[]): RubricPayload => {
+  const getRubricPayload = (criteriaItems: NormalizedCriteriaDraft[]): RubricPayload => {
     return {
       title: title.trim() ? `Rubric for ${title.trim()}` : 'Assignment Rubric',
-      criteria: criteriaItems.map((criteria) => ({
-        criteria_id: criteria.criteria_id,
-        rubric_id: criteria.rubric_id,
-        criteria_name: criteria.criteria_name.trim(),
-        description: criteria.description.trim(),
-        max_score: Number(criteria.max_score) || 0,
-        weight: Number(criteria.weight) || 1,
-      })),
+      criteria: criteriaItems.map((criteria) => {
+        const percentage = Number(criteria.weight) || 0
+        const ranges = (scoringLevels[criteria.sourceIndex] || createDefaultScoringLevels()).map((level) => ({
+          level: level.level.trim(),
+          min_score: Number(level.minScore) || 0,
+          max_score: Number(level.maxScore) || 0,
+          description: level.description.trim(),
+        }))
+
+        return {
+          criteria_id: criteria.criteria_id,
+          rubric_id: criteria.rubric_id,
+          criteria_name: criteria.criteria_name.trim(),
+          description: criteria.description.trim(),
+          weight: percentage / 100,
+          ranges,
+        }
+      }),
     }
   }
 
@@ -461,9 +499,9 @@ export function EditAssignment() {
         return
       }
 
-      const hasInvalidCriteriaScore = normalizedRubricCriteria.some((criteria) => (Number(criteria.max_score) || 0) <= 0)
-      if (hasInvalidCriteriaScore) {
-        toast.error('Each rubric criteria must have points greater than 0.')
+      const hasInvalidWeight = normalizedRubricCriteria.some((criteria) => (Number(criteria.weight) || 0) <= 0)
+      if (hasInvalidWeight) {
+        toast.error('Each rubric criteria must have a percentage greater than 0.')
         return
       }
 
@@ -810,36 +848,109 @@ export function EditAssignment() {
                   Add Criteria
                 </Button>
               </CardHeader>
-              <CardContent className='space-y-3'>
-                {criteriaList.map((criteria, index) => (
-                  <div key={`${criteria.criteria_id ?? 'new'}-${index}`} className='grid grid-cols-[1fr_120px_40px] gap-3'>
-                    <Input
-                      value={criteria.criteria_name}
-                      onChange={(event) => updateCriteriaName(index, event.target.value)}
-                      placeholder='Criteria name'
-                    />
-                    <Input
-                      type='number'
-                      min={1}
-                      value={criteria.max_score}
-                      onChange={(event) => updateCriteriaMaxScore(index, event.target.value)}
-                      placeholder='Points'
-                    />
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      onClick={() => removeCriteria(index)}
-                      disabled={criteriaList.length <= 1}
-                      className='text-red-600 hover:text-red-700'
-                    >
-                      <Trash2 className='h-4 w-4' />
-                    </Button>
-                  </div>
-                ))}
+              <CardContent className='space-y-4'>
+                <div className='overflow-x-auto border rounded-lg'>
+                  <table className='w-full text-sm'>
+                    <thead className='bg-gray-100 border-b'>
+                      <tr>
+                        <th className='px-4 py-3 text-left font-semibold text-gray-700 w-8'></th>
+                        <th className='px-4 py-3 text-left font-semibold text-gray-700'>Criteria Name</th>
+                        <th className='px-4 py-3 text-center font-semibold text-gray-700 w-32'>Percentage (%)</th>
+                        <th className='px-4 py-3 text-center font-semibold text-gray-700 w-20'>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {criteriaList.map((criteria, index) => {
+                        const isExpanded = expandedCriteria === index
+                        const levels = scoringLevels[index] || createDefaultScoringLevels()
 
-                <div className='border-t pt-4 flex items-center justify-between text-sm'>
-                  <span>Total Points:</span>
-                  <span className='font-semibold'>{rubricPoints} / {totalPoints || '0'}</span>
+                        return (
+                          <Fragment key={`criteria-row-${criteria.criteria_id ?? 'new'}-${index}`}>
+                            <tr className='border-b hover:bg-gray-50 transition-colors'>
+                              <td className='px-4 py-3 text-center'>
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={() => {
+                                    setExpandedCriteria(isExpanded ? null : index)
+                                    if (!isExpanded && !scoringLevels[index]) {
+                                      setScoringLevels(prev => ({
+                                        ...prev,
+                                        [index]: createDefaultScoringLevels()
+                                      }))
+                                    }
+                                  }}
+                                  className='p-0'
+                                >
+                                  {isExpanded ? (
+                                    <ChevronDown className='h-4 w-4' />
+                                  ) : (
+                                    <ChevronRight className='h-4 w-4' />
+                                  )}
+                                </Button>
+                              </td>
+                              <td className='px-4 py-3'>
+                                <Input
+                                  value={criteria.criteria_name}
+                                  onChange={(event) => updateCriteriaName(index, event.target.value)}
+                                  placeholder='Enter criteria name'
+                                  className='bg-white border border-gray-300'
+                                />
+                              </td>
+                              <td className='px-4 py-3'>
+                                <Input
+                                  type='number'
+                                  min={0}
+                                  max={100}
+                                  step={1}
+                                  value={criteria.weight}
+                                  onChange={(event) => updateCriteriaWeight(index, event.target.value)}
+                                  placeholder='0'
+                                  className='bg-white border border-gray-300 text-center w-24 text-base py-2'
+                                />
+                              </td>
+                              <td className='px-4 py-3 text-center'>
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  size='sm'
+                                  onClick={() => removeCriteria(index)}
+                                  disabled={criteriaList.length <= 1}
+                                  className='text-red-600 hover:text-red-700 hover:bg-red-50'
+                                >
+                                  <Trash2 className='h-4 w-4' />
+                                </Button>
+                              </td>
+                            </tr>
+
+                            {isExpanded && (
+                              <tr className='bg-gray-50 border-b'>
+                                <td colSpan={4} className='p-0'>
+                                  <ScoringLevelsEditor
+                                    levels={levels}
+                                    onUpdate={(updatedLevels) => {
+                                      setScoringLevels(prev => ({ ...prev, [index]: updatedLevels }))
+                                    }}
+                                  />
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className='border-t pt-4 bg-gray-50 rounded-lg p-4 flex items-center justify-between'>
+                  <div>
+                    <p className='text-sm font-medium text-gray-700'>Total Points</p>
+                    <p className='text-xs text-gray-500 mt-1'>Sum of all criteria points</p>
+                  </div>
+                  <span className={`text-2xl font-bold ${rubricPoints !== parseInt(totalPoints || '0') ? 'text-red-600' : 'text-green-600'}`}>
+                    {rubricPoints} / {totalPoints || '0'}
+                  </span>
                 </div>
               </CardContent>
             </Card>

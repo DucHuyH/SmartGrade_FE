@@ -320,7 +320,7 @@ export function AssignmentDetail() {
             </CardContent>
           </Card>
 
-          <Card>
+          {/* <Card>
             <CardHeader>
               <CardTitle>Grading Rubric</CardTitle>
               <CardDescription>Total: {assignment.max_score ?? 0} points</CardDescription>
@@ -342,7 +342,7 @@ export function AssignmentDetail() {
                 )}
               </div>
             </CardContent>
-          </Card>
+          </Card> */}
         </div>
 
         {/* Sidebar */}
