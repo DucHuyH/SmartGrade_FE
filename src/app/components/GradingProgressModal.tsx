@@ -1,10 +1,11 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Progress } from '../components/ui/progress';
 import { Alert, AlertDescription } from '../components/ui/alert';
-import { AlertCircle, CheckCircle2, Clock } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, Loader2 } from 'lucide-react';
 
 interface GradingProgressModalProps {
     isOpen: boolean;
+    onOpenChange?: (open: boolean) => void;
     total: number;
     completed: number;
     failed: number;
@@ -19,6 +20,7 @@ interface GradingProgressModalProps {
 
 export function GradingProgressModal({
     isOpen,
+    onOpenChange,
     total,
     completed,
     failed,
@@ -27,15 +29,19 @@ export function GradingProgressModal({
     currentSubmissionId,
     errors,
 }: GradingProgressModalProps) {
-    const remaining = total - completed - failed;
+    const remaining = Math.max(total - completed - failed, 0);
+    const safeProgressPercentage = Math.max(0, Math.min(progressPercentage, 100));
+    const shouldShowLoadingSpinner =
+        isOpen && (isActive || (total === 0 && completed === 0 && failed === 0));
 
     return (
-        <Dialog open={isOpen} onOpenChange={() => { }}>
+        <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Clock className="h-5 w-5 text-blue-600" />
                         AI Grading in Progress
+                        {shouldShowLoadingSpinner && <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />}
                     </DialogTitle>
                     <DialogDescription>Real-time grading status and progress</DialogDescription>
                 </DialogHeader>
@@ -45,9 +51,9 @@ export function GradingProgressModal({
                     <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                             <span className="font-medium">Overall Progress</span>
-                            <span className="text-gray-600">{Math.round(progressPercentage)}%</span>
+                            <span className="text-gray-600">{Math.round(safeProgressPercentage)}%</span>
                         </div>
-                        <Progress value={progressPercentage} className="h-3" />
+                        <Progress value={safeProgressPercentage} className="h-3" />
                         <p className="text-xs text-gray-500">
                             {completed + failed} of {total} submissions processed
                         </p>
@@ -104,7 +110,7 @@ export function GradingProgressModal({
                     {/* Completion Message */}
                     {!isActive && total > 0 && (
                         <div className="bg-green-50 rounded-lg p-4 border border-green-200 flex items-start gap-3">
-                            <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+                            <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
                             <div className="text-sm">
                                 <p className="font-medium text-green-900">Grading Complete</p>
                                 <p className="text-green-700 text-xs mt-1">

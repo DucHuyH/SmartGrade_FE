@@ -21,6 +21,8 @@ import { AssignmentDetail } from './app/pages/student/AssignmentDetail'
 import { SubmitAssignment } from './app/pages/student/SubmitAssignment'
 import { ViewGrade } from './app/pages/student/ViewGrade'
 import { ErrorBoundary } from './app/components/ErrorBoundary'
+import { LecturerMessages } from './app/pages/lecturer/LecturerMessages'
+import { StudentMessages } from './app/pages/student/StudentMessages'
 
 export const router = createBrowserRouter([
   {
@@ -72,7 +74,11 @@ export const router = createBrowserRouter([
       {
         path: 'courses/:course_id/assignments/:assignment_id/submissions/:submission_id/ai-grading',
         Component: AIGradingReview
-      }
+      },
+      {
+        path: 'messages',
+        Component: LecturerMessages
+      },
     ]
   },
   {
@@ -103,6 +109,10 @@ export const router = createBrowserRouter([
       {
         path: 'submissions/:submission_id/grade',
         Component: ViewGrade
+      },
+      {
+        path: 'messages',
+        Component: StudentMessages
       }
 
     ]

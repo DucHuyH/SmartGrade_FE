@@ -138,6 +138,7 @@ export function SubmissionTable() {
 
             try {
                 const selectedIds = Array.from(selectedSubmissionIds);
+                console.log('Starting AI grading for submission IDs:', selectedIds);
                 await gradeSubmissionsWithAI(assignment_id, selectedIds);
                 toast.info(`Starting AI grading for ${selectedIds.length} submission(s)...`);
                 setSelectedSubmissionIds(new Set());
@@ -191,6 +192,23 @@ export function SubmissionTable() {
             return () => clearTimeout(timer);
         }
     }, [isActive, showGradingProgress, total, resetProgress]);
+
+    useEffect(() => {
+        if (!showGradingProgress || total <= 0) {
+            return;
+        }
+
+        if (progressPercentage >= 100) {
+            setShowGradingProgress(false);
+            setAiGrading(false);
+
+            const timer = setTimeout(() => {
+                window.location.reload();
+            }, 500);
+
+            return () => clearTimeout(timer);
+        }
+    }, [showGradingProgress, total, progressPercentage]);
 
     const handleViewSubmission = (submission: LecturerSubmission) => {
         if (!course_id || !assignment_id || submission.status === 'not_submitted') {
@@ -269,6 +287,7 @@ export function SubmissionTable() {
     const selectedCount = selectedSubmissionIds.size;
     const allSelected = submissions.length > 0 && selectedCount === submissions.length;
     const partiallySelected = selectedCount > 0 && selectedCount < submissions.length;
+    const hasReachedGradingCompletion = total > 0 && (progressPercentage >= 100 || completed + failed >= total);
 
     // Build breadcrumb items
     const breadcrumbItems = [];
@@ -487,6 +506,17 @@ export function SubmissionTable() {
             {/* Grading Progress Modal */}
             <GradingProgressModal
                 isOpen={showGradingProgress}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        const shouldReload = hasReachedGradingCompletion;
+                        setShowGradingProgress(false);
+                        setAiGrading(false);
+
+                        if (shouldReload) {
+                            window.location.reload();
+                        }
+                    }
+                }}
                 total={total}
                 completed={completed}
                 failed={failed}

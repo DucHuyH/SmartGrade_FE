@@ -74,7 +74,7 @@ export function StudentLayout() {
                 </Button>
               )}
             </NavLink>
-            <NavLink to="/student/assignments">
+            {/* <NavLink to="/student/assignments">
               {({ isActive }) => (
                 <Button
                   variant="ghost"
@@ -85,7 +85,7 @@ export function StudentLayout() {
                   Assignments
                 </Button>
               )}
-            </NavLink>
+            </NavLink> */}
             <NavLink to="/student/messages">
               {({ isActive }) => (
                 <Button

@@ -722,7 +722,7 @@ export function CreateAssignment() {
                     <ChevronDown className='h-3 w-3' />
                   </Button>
                   {showTemplateMenu && (
-                    <div className='absolute top-10 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[200px]'>
+                    <div className='absolute top-10 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-50'>
                       {RUBRIC_TEMPLATES.map((template) => (
                         <button
                           key={template.id}
