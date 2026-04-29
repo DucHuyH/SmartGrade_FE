@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -47,6 +47,7 @@ export function SubmissionTable() {
     const [selectedSubmissionIds, setSelectedSubmissionIds] = useState<Set<string>>(new Set());
     const [pendingAction, setPendingAction] = useState<'ai' | 'publish' | null>(null);
     const [showGradingProgress, setShowGradingProgress] = useState(false);
+    const shouldReloadAfterCloseRef = useRef(false);
 
     // Socket.io grading progress tracking
     const {
@@ -132,6 +133,7 @@ export function SubmissionTable() {
                 return;
             }
 
+            shouldReloadAfterCloseRef.current = false;
             setAiGrading(true);
             resetProgress();
             setShowGradingProgress(true);
@@ -178,37 +180,34 @@ export function SubmissionTable() {
         setPendingAction(null);
     };
 
-    // Close grading progress modal when grading is complete
     useEffect(() => {
-        if (!isActive && showGradingProgress && total > 0) {
-            // Wait a bit before auto-closing to show completion state
-            const timer = setTimeout(() => {
-                // Optionally auto-close after a delay, or keep it open
-                // setShowGradingProgress(false);
-                // resetProgress();
+        let timer: ReturnType<typeof setTimeout> | undefined;
+
+        if (showGradingProgress && total > 0) {
+            const hasCompletedGrading = progressPercentage >= 100 || completed + failed >= total;
+
+            if (hasCompletedGrading) {
+                shouldReloadAfterCloseRef.current = true;
+                setShowGradingProgress(false);
                 setAiGrading(false);
-            }, 2000);
-
-            return () => clearTimeout(timer);
-        }
-    }, [isActive, showGradingProgress, total, resetProgress]);
-
-    useEffect(() => {
-        if (!showGradingProgress || total <= 0) {
-            return;
-        }
-
-        if (progressPercentage >= 100) {
-            setShowGradingProgress(false);
-            setAiGrading(false);
-
-            const timer = setTimeout(() => {
+            } else if (!isActive) {
+                timer = setTimeout(() => {
+                    setAiGrading(false);
+                }, 2000);
+            }
+        } else if (!showGradingProgress && shouldReloadAfterCloseRef.current) {
+            timer = setTimeout(() => {
+                shouldReloadAfterCloseRef.current = false;
                 window.location.reload();
             }, 500);
-
-            return () => clearTimeout(timer);
         }
-    }, [showGradingProgress, total, progressPercentage]);
+
+        return () => {
+            if (timer) {
+                clearTimeout(timer);
+            }
+        };
+    }, [showGradingProgress, total, progressPercentage, completed, failed, isActive]);
 
     const handleViewSubmission = (submission: LecturerSubmission) => {
         if (!course_id || !assignment_id || submission.status === 'not_submitted') {
@@ -508,13 +507,8 @@ export function SubmissionTable() {
                 isOpen={showGradingProgress}
                 onOpenChange={(open) => {
                     if (!open) {
-                        const shouldReload = hasReachedGradingCompletion;
                         setShowGradingProgress(false);
                         setAiGrading(false);
-
-                        if (shouldReload) {
-                            window.location.reload();
-                        }
                     }
                 }}
                 total={total}
