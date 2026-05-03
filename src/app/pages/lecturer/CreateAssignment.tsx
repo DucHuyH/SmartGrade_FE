@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { ArrowLeft, FileText, Loader2, Save, X, Upload, Plus, Trash2, Copy, ChevronDown, ChevronRight } from 'lucide-react';
 import { Course } from '../../../model';
 import { CriteriaPayload, RubricPayload } from '../../../model/rubric';
@@ -15,6 +16,14 @@ import { ScoringLevel, ScoringLevelsEditor, createDefaultScoringLevels } from '.
 
 const FILE_TYPE_OPTIONS = ['pdf', 'docx', 'xlsx', 'txt']
 const DEADLINE_OFFSET_MINUTES = 5
+const ASSIGNMENT_TYPE_OPTIONS = [
+  { value: 'project', label: 'Project' },
+  { value: 'long essay', label: 'Long Essay' },
+  { value: 'short answer', label: 'Short Answer' },
+  { value: 'other', label: 'Other' },
+] as const
+
+type AssignmentTypeOption = typeof ASSIGNMENT_TYPE_OPTIONS[number]['value']
 
 type CriteriaDraft = CriteriaPayload
 type NormalizedCriteriaDraft = CriteriaDraft & { sourceIndex: number }
@@ -156,6 +165,8 @@ export function CreateAssignment() {
   const [description, setDescription] = useState('');
   const [questions, setQuestions] = useState('');
   const [requirements, setRequirements] = useState('');
+  const [assignmentType, setAssignmentType] = useState<AssignmentTypeOption>('project');
+  const [assignmentTypeOther, setAssignmentTypeOther] = useState('');
   const [deadline, setDeadline] = useState(getMinimumDeadlineInput());
   const [totalPoints, setTotalPoints] = useState('100');
   const [maxFileSizeMb, setMaxFileSizeMb] = useState('10');
@@ -387,6 +398,14 @@ export function CreateAssignment() {
       return
     }
 
+    const normalizedAssignmentType =
+      assignmentType === 'other' ? assignmentTypeOther.trim() : assignmentType
+
+    if (!normalizedAssignmentType) {
+      toast.error('Assignment type is required.')
+      return
+    }
+
     if (!deadline) {
       toast.error('Deadline is required.')
       return
@@ -453,6 +472,7 @@ export function CreateAssignment() {
         formData.append('course_id', courseId);
         formData.append('title', title.trim());
         formData.append('description', description.trim());
+        formData.append('assignment_type', normalizedAssignmentType);
         formData.append('questions', questions.trim());
         formData.append('requirements', requirements.trim());
         formData.append('due_date', toIsoDate(deadline));
@@ -468,6 +488,7 @@ export function CreateAssignment() {
           course_id: courseId,
           title: title.trim(),
           description: description.trim(),
+          assignment_type: normalizedAssignmentType,
           questions: questions.trim(),
           requirements: requirements.trim(),
           due_date: toIsoDate(deadline),
@@ -551,6 +572,37 @@ export function CreateAssignment() {
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </div>
+
+              <div className='space-y-2'>
+                <Label htmlFor='assignment-type'>Assignment Type</Label>
+                <Select
+                  value={assignmentType}
+                  onValueChange={(value) => setAssignmentType(value as AssignmentTypeOption)}
+                >
+                  <SelectTrigger id='assignment-type'>
+                    <SelectValue placeholder='Select assignment type' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ASSIGNMENT_TYPE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {assignmentType === 'other' && (
+                <div className='space-y-2'>
+                  <Label htmlFor='assignment-type-other'>Other Assignment Type</Label>
+                  <Input
+                    id='assignment-type-other'
+                    placeholder='Enter assignment type'
+                    value={assignmentTypeOther}
+                    onChange={(e) => setAssignmentTypeOther(e.target.value)}
+                  />
+                </div>
+              )}
 
               <div className='space-y-2'>
                 <Label htmlFor='questions'>Questions</Label>

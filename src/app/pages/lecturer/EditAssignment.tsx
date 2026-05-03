@@ -17,6 +17,14 @@ import { ScoringLevel, ScoringLevelsEditor, createDefaultScoringLevels } from '.
 
 const FILE_TYPE_OPTIONS = ['pdf', 'docx', 'xlsx', 'txt']
 const DEADLINE_OFFSET_MINUTES = 5
+const ASSIGNMENT_TYPE_OPTIONS = [
+  { value: 'project', label: 'Project' },
+  { value: 'long essay', label: 'Long Essay' },
+  { value: 'short answer', label: 'Short Answer' },
+  { value: 'other', label: 'Other' },
+] as const
+
+type AssignmentTypeOption = typeof ASSIGNMENT_TYPE_OPTIONS[number]['value']
 
 type CriteriaDraft = CriteriaPayload
 type NormalizedCriteriaDraft = CriteriaDraft & { sourceIndex: number }
@@ -109,6 +117,34 @@ const getFileNameFromUrl = (url: string): string => {
   }
 };
 
+const normalizeAssignmentTypeSelection = (
+  value?: string,
+): { type: AssignmentTypeOption; otherValue: string } => {
+  const normalized = value?.trim().toLowerCase() ?? ''
+  const predefined = ASSIGNMENT_TYPE_OPTIONS
+    .filter((option) => option.value !== 'other')
+    .map((option) => option.value)
+
+  if (predefined.includes(normalized as Exclude<AssignmentTypeOption, 'other'>)) {
+    return {
+      type: normalized as AssignmentTypeOption,
+      otherValue: '',
+    }
+  }
+
+  if (!normalized) {
+    return {
+      type: 'project',
+      otherValue: '',
+    }
+  }
+
+  return {
+    type: 'other',
+    otherValue: value?.trim() ?? '',
+  }
+}
+
 const formatFileSizeMb = (bytes: number) => {
   const sizeInMb = bytes / (1024 * 1024)
   return `${sizeInMb.toFixed(2)} MB`
@@ -130,6 +166,8 @@ export function EditAssignment() {
   const [courseId, setCourseId] = useState(courseFromQuery);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [assignmentType, setAssignmentType] = useState<AssignmentTypeOption>('project');
+  const [assignmentTypeOther, setAssignmentTypeOther] = useState('');
   const [questions, setQuestions] = useState('');
   const [requirements, setRequirements] = useState('');
   const [deadline, setDeadline] = useState('');
@@ -184,6 +222,9 @@ export function EditAssignment() {
         setCourseId(parsedAssignment.course_id || courseFromQuery);
         setTitle(parsedAssignment.title ?? '');
         setDescription(parsedAssignment.description ?? '');
+        const assignmentTypeSelection = normalizeAssignmentTypeSelection(parsedAssignment.assignment_type)
+        setAssignmentType(assignmentTypeSelection.type)
+        setAssignmentTypeOther(assignmentTypeSelection.otherValue)
         setQuestions(parsedAssignment.questions ?? '');
         setRequirements(parsedAssignment.requirements ?? '');
         setDeadline(toLocalDateTimeInput(parsedAssignment.due_date));
@@ -458,6 +499,14 @@ export function EditAssignment() {
       return
     }
 
+    const normalizedAssignmentType =
+      assignmentType === 'other' ? assignmentTypeOther.trim() : assignmentType
+
+    if (!normalizedAssignmentType) {
+      toast.error('Assignment type is required.')
+      return
+    }
+
     if (!deadline) {
       toast.error('Deadline is required.')
       return
@@ -528,6 +577,7 @@ export function EditAssignment() {
         formData.append('course_id', courseId);
         formData.append('title', title.trim());
         formData.append('description', description.trim());
+        formData.append('assignment_type', normalizedAssignmentType);
         formData.append('questions', questions.trim());
         formData.append('requirements', requirements.trim());
         formData.append('due_date', toIsoDate(deadline));
@@ -552,6 +602,7 @@ export function EditAssignment() {
           course_id: courseId,
           title: title.trim(),
           description: description.trim(),
+          assignment_type: normalizedAssignmentType,
           questions: questions.trim(),
           requirements: requirements.trim(),
           due_date: toIsoDate(deadline),
@@ -657,6 +708,37 @@ export function EditAssignment() {
                     onChange={(e) => setDescription(e.target.value)}
                   />
                 </div>
+
+                <div className='space-y-2'>
+                  <Label htmlFor='assignment-type'>Assignment Type</Label>
+                  <Select
+                    value={assignmentType}
+                    onValueChange={(value) => setAssignmentType(value as AssignmentTypeOption)}
+                  >
+                    <SelectTrigger id='assignment-type'>
+                      <SelectValue placeholder='Select assignment type' />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ASSIGNMENT_TYPE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {assignmentType === 'other' && (
+                  <div className='space-y-2'>
+                    <Label htmlFor='assignment-type-other'>Other Assignment Type</Label>
+                    <Input
+                      id='assignment-type-other'
+                      value={assignmentTypeOther}
+                      onChange={(e) => setAssignmentTypeOther(e.target.value)}
+                      placeholder='Enter assignment type'
+                    />
+                  </div>
+                )}
 
                 <div className='space-y-2'>
                   <Label htmlFor='questions'>Questions</Label>

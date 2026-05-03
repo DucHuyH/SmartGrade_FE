@@ -3,6 +3,7 @@ import { Rubric } from './rubric';
 export interface Assignment {
     assignment_id: string;
     course_id: string;
+    assignment_type?: string;
     course_name?: string;
     courseName?: string;
     course_code?: string;

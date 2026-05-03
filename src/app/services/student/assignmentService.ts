@@ -161,10 +161,16 @@ export const getAssignmentDetails = async (assignmentId: string): Promise<Assign
             (typeof assignmentRecord?.question_file === 'string' && assignmentRecord.question_file) ||
             undefined;
 
+        const normalizedAssignmentType =
+            (typeof assignmentRecord?.assignment_type === 'string' && assignmentRecord.assignment_type.trim()) ||
+            (typeof assignmentRecord?.assignmentType === 'string' && assignmentRecord.assignmentType.trim()) ||
+            'project';
+
 
 
         return {
             ...(assignmentRecord as unknown as Assignment),
+            assignment_type: normalizedAssignmentType,
             question_file_url: normalizedQuestionFileUrl,
             rubric: rubricRecord as Assignment['rubric'],
         };

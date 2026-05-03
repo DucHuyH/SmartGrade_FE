@@ -198,6 +198,18 @@ export function AssignmentDetail() {
   );
   const resolvedCourseName = courseName || assignment?.courseName || assignment?.course_name || '';
   const isAlreadySubmitted = Boolean(assignment?.has_submitted);
+  const assignmentTypeLabel = useMemo(() => {
+    const type = assignment?.assignment_type?.trim();
+    if (!type) {
+      return 'Project';
+    }
+
+    return type
+      .split(' ')
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  }, [assignment?.assignment_type]);
 
   // Build breadcrumb items
   const breadcrumbItems = [];
@@ -375,6 +387,14 @@ export function AssignmentDetail() {
                   <div>
                     <div className="text-gray-600">Total Points</div>
                     <div>{assignment.max_score ?? 0}</div>
+                  </div>
+                </div>
+                <Separator />
+                <div className="flex items-start gap-2">
+                  <FileText className="h-4 w-4 mt-0.5 text-gray-500" />
+                  <div>
+                    <div className="text-gray-600">Assignment Type</div>
+                    <div>{assignmentTypeLabel}</div>
                   </div>
                 </div>
               </div>

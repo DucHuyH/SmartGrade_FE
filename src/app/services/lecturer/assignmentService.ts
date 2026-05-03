@@ -226,9 +226,15 @@ export const getAssignmentDetails = async (assignmentId: string) => {
             root?.rubric ??
             null;
 
+        const normalizedAssignmentType =
+            (typeof assignmentRecord?.assignment_type === 'string' && assignmentRecord.assignment_type.trim()) ||
+            (typeof assignmentRecord?.assignmentType === 'string' && assignmentRecord.assignmentType.trim()) ||
+            'project';
+
 
         return {
             ...(assignmentRecord as unknown as Assignment),
+            assignment_type: normalizedAssignmentType,
             rubric: rubricRecord as Assignment["rubric"],
         };
     } catch (error) {
