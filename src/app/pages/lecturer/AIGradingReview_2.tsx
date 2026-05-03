@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -7,10 +7,10 @@ import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
 import { Breadcrumb } from '../../components/Breadcrumb';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { Loader2, Save, User, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Loader2, Save, User, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { Assignment } from '../../../model/assignment';
-import { SimplePDFViewer } from '../../components/SimplePDFViewer';
+import { SimplePDFViewer } from '../../components/SimplePDFViewer_2';
 import {
     getAssignmentDetails,
     getAssignmentSubmissions,
@@ -21,7 +21,7 @@ import {
     publishSubmissionGrades,
     saveSubmissionGrade,
     generateFeedbackFromSubmission,
-} from '../../services/lecturer/assignmentService';
+} from '../../services/lecturer/assignmentService_2';
 
 type PageLocationState = {
     courseTitle?: string;
@@ -73,27 +73,6 @@ export function AIGradingReview() {
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
-    const [annotatedPdfUrl, setAnnotatedPdfUrl] = useState<string | null>(null);
-    const viewerRef = useRef<{
-        exportAnnotatedPdf: () => Promise<Blob | null>;
-        getAnnotatedPdfBlob: () => Promise<Blob | null>;
-        getAnnotations: () => Array<{
-            id: string;
-            points: Array<{ x: number; y: number }>;
-            color: string;
-            width: number;
-            pageNumber: number;
-            text?: string;
-        }>;
-    } | null>(null);
-
-    useEffect(() => {
-        return () => {
-            if (annotatedPdfUrl) {
-                URL.revokeObjectURL(annotatedPdfUrl);
-            }
-        };
-    }, [annotatedPdfUrl]);
 
     useEffect(() => {
         if (!assignment_id || !routeSubmissionId) {
@@ -253,30 +232,19 @@ export function AIGradingReview() {
 
         setIsGeneratingFeedback(true);
         try {
-            const annotations = viewerRef.current?.getAnnotations?.() ?? [];
-            const annotatedBlob = await viewerRef.current?.getAnnotatedPdfBlob?.();
-
-            if (!annotatedBlob) {
-                throw new Error('Unable to build annotated PDF.');
-            }
-
-            const objectUrl = URL.createObjectURL(annotatedBlob);
-            setAnnotatedPdfUrl((current) => {
-                if (current) {
-                    URL.revokeObjectURL(current);
-                }
-
-                return objectUrl;
-            });
-
+            // console.log('[handleGenerateFeedback] Starting feedback generation for submission:', {
+            //     submissionId: routeSubmissionId,
+            //     fileUrl: submissionFileUrl,
+            //     annotations,
+            // });
             const response = await generateFeedbackFromSubmission({
-                file: annotatedBlob,
-                fileName: `${routeSubmissionId || 'annotated-submission'}.pdf`,
-                annotations,
+                fileUrl: submissionFileUrl,
+                annotations: [],
                 submissionId: routeSubmissionId,
             });
 
-            if (response?.overallFeedback) {
+            // Update overall feedback
+            if (response.overallFeedback) {
                 setOverallFeedback(response.overallFeedback);
             }
 
@@ -415,8 +383,7 @@ export function AIGradingReview() {
                     {/* Left Panel: PDF Viewer with Drawing */}
                     <div className="lg:col-span-2 h-full min-h-0">
                         <SimplePDFViewer
-                            ref={viewerRef}
-                            fileUrl={annotatedPdfUrl || submissionFileUrl || undefined}
+                            fileUrl={submissionFileUrl || undefined}
                             onFetchFileBlob={fetchFileBlob}
                             title="Student Submission"
                         />
@@ -487,7 +454,7 @@ export function AIGradingReview() {
                         </Card>
 
                         {/* Overall Feedback */}
-                        <Button
+                        {/* <Button
                             onClick={handleGenerateFeedback}
                             disabled={isGeneratingFeedback || !submissionFileUrl}
                             className="w-full bg-purple-600 hover:bg-purple-700"
@@ -503,7 +470,7 @@ export function AIGradingReview() {
                                     Extract & Apply Annotations
                                 </>
                             )}
-                        </Button>
+                        </Button> */}
 
                         {/* Overall Feedback */}
                         <Card>

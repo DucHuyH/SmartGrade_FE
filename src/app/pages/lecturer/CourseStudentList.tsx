@@ -12,6 +12,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { Pagination } from '../../components/ui/pagination';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { getCourseDetails, getCourseStudentGrades, importCourseStudents } from '../../services/lecturer/courseService';
+import { ScoringLevel, createDefaultScoringLevels } from '../../components/ScoringLevelsEditor';
+import { getGradeLetter } from '../../utils/gradingSystem';
 
 type StudentAssignmentGrade = {
     courseId: string;
@@ -65,51 +67,32 @@ const toNullableString = (value: unknown): string | null => {
     return null;
 };
 
-const getStudentAverage = (student: StudentListItem, courseId?: string) => {
-    const relevantAssignments = student.assignments.filter((assignment) => {
-        return !courseId || !assignment.courseId || String(assignment.courseId) === String(courseId);
-    });
-
-    const gradedAssignments = relevantAssignments.filter((assignment) => {
-        return typeof assignment.score === 'number' && typeof assignment.maxScore === 'number' && assignment.maxScore > 0;
-    });
-
-    if (gradedAssignments.length === 0) {
+const getStudentAverage = (student: StudentListItem, assignmentsForCourse: StudentAssignmentGrade[]) => {
+    if (!assignmentsForCourse || assignmentsForCourse.length === 0) {
         return null;
     }
 
-    const totalScore = gradedAssignments.reduce((sum, assignment) => sum + (assignment.score ?? 0), 0);
-    const totalMaxScore = gradedAssignments.reduce((sum, assignment) => sum + (assignment.maxScore ?? 0), 0);
+    // For each assignment in the course, compute student's percent (score/max)
+    // Missing student score => 0. Missing maxScore => assume 100.
+    const percentages = assignmentsForCourse.map((assignment) => {
+        const studentAssignment = student.assignments.find((a) => a.assignmentId === assignment.assignmentId) || null;
+        const score = typeof studentAssignment?.score === 'number' ? studentAssignment!.score! : 0;
+        const maxFromAssignment = typeof assignment.maxScore === 'number' && assignment.maxScore > 0 ? assignment.maxScore : null;
+        const maxFromStudent = typeof studentAssignment?.maxScore === 'number' && studentAssignment!.maxScore! > 0 ? studentAssignment!.maxScore! : null;
+        const max = maxFromAssignment ?? maxFromStudent ?? 100;
 
-    if (totalMaxScore <= 0) {
-        return null;
-    }
+        return (score / max) * 100;
+    });
 
-    return (totalScore / totalMaxScore) * 100;
+    const sum = percentages.reduce((s, p) => s + p, 0);
+    const avg = sum / assignmentsForCourse.length;
+    return avg;
 };
 
 const getLetterGrade = (average: number | null) => {
-    if (average === null) {
-        return '-';
-    }
-
-    if (average >= 90) {
-        return 'A';
-    }
-
-    if (average >= 80) {
-        return 'B';
-    }
-
-    if (average >= 70) {
-        return 'C';
-    }
-
-    if (average >= 60) {
-        return 'D';
-    }
-
-    return 'F';
+    if (average === null) return '-';
+    // Use gradingSystem.getGradeLetter with maxScore = 100
+    return getGradeLetter(average, 100);
 };
 
 const sanitizeFileName = (value: string) => value.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim();
@@ -321,6 +304,8 @@ export function CourseStudentList() {
         return Array.from(assignmentMap.values());
     }, [students, course_id]);
 
+    const [scoringLevels, setScoringLevels] = useState<ScoringLevel[]>(() => createDefaultScoringLevels());
+
     const totalPages = Math.max(1, Math.ceil(filteredStudents.length / PAGE_SIZE));
 
     useEffect(() => {
@@ -340,9 +325,9 @@ export function CourseStudentList() {
 
     const studentAverages = useMemo(() => {
         return new Map(
-            students.map((student) => [student.id, getStudentAverage(student, course_id)])
+            students.map((student) => [student.id, getStudentAverage(student, visibleAssignments)])
         );
-    }, [students, course_id]);
+    }, [students, visibleAssignments]);
 
     const getAssignmentGradeForStudent = (student: StudentListItem, assignmentId: string) => {
         return student.assignments.find((item) => item.assignmentId === assignmentId && (!course_id || !item.courseId || String(item.courseId) === String(course_id))) ?? null;
@@ -508,7 +493,7 @@ export function CourseStudentList() {
             });
 
             students.forEach((student, studentIndex) => {
-                const average = getStudentAverage(student, course_id);
+                const average = getStudentAverage(student, exportAssignments);
                 const rowValues = [
                     student.studentId,
                     student.name,

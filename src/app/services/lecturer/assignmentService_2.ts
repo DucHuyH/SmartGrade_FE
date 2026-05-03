@@ -571,8 +571,7 @@ export interface AnalysisAnnotation {
 }
 
 export interface FeedbackAnalysisRequest {
-    file: Blob;
-    fileName?: string;
+    fileUrl: string;
     annotations?: AnalysisAnnotation[];
     submissionId?: string;
 }
@@ -591,48 +590,35 @@ export const generateFeedbackFromSubmission = async (
     request: FeedbackAnalysisRequest
 ): Promise<FeedbackAnalysisResponse> => {
     try {
-        console.log('[generateFeedbackFromSubmission] Uploading annotated file:', {
-            fileName: request.fileName,
-            submissionId: request.submissionId,
-            hasAnnotations: Boolean(request.annotations?.length),
-        });
+        console.log('[generateFeedbackFromSubmission] Request:', request);
+        // TODO: Replace with actual API endpoint
+        // This is a mock implementation that returns sample data
+        // In production, this should call your backend AI/analysis service
 
-        const formData = new FormData();
-        const uploadFileName = request.fileName ?? (request.file instanceof File ? request.file.name : 'annotated-submission.pdf');
-        formData.append('file', request.file, uploadFileName);
+        // Simulate API delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        if (request.submissionId) {
-            formData.append('submissionId', String(request.submissionId));
-        }
-
-        if (request.annotations && request.annotations.length > 0) {
-            formData.append('annotations', JSON.stringify(request.annotations));
-        }
-
-        try {
-            console.log(formData)
-            const resp = await axiosInstance.post('/grading/ai/analyze-by-file', formData, { withCredentials: true });
-            const data = resp.data?.data ?? resp.data;
-
-            return {
-                overallFeedback: data?.overallFeedback || data?.message || '',
-                criteria: data?.criteria,
-                summary: data?.summary,
-            } as FeedbackAnalysisResponse;
-        } catch (fileError) {
-            console.error('[generateFeedbackFromSubmission] analyze-by-file error:', fileError);
-        }
-
-        // Fallback: return a reasonable mock response if no backend is available
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // Mock response - customize this based on your actual API
         const mockResponse: FeedbackAnalysisResponse = {
-            overallFeedback:
-                'Great work! The submission demonstrates a good understanding of the concepts. Consider adding more comments for clarity.',
+            overallFeedback: 'Great work! The submission demonstrates a good understanding of the concepts. The code is well-structured and the logic is clear. Consider adding more comments for better readability.',
             criteria: [
-                { criteriaId: '1', feedback: 'Organization is good.', suggestedScore: 9 },
-                { criteriaId: '2', feedback: 'Edge cases handled.', suggestedScore: 8 },
+                {
+                    criteriaId: '1',
+                    feedback: 'Code structure is clean and follows best practices.',
+                    suggestedScore: 9,
+                },
+                {
+                    criteriaId: '2',
+                    feedback: 'Logic is correct and handles edge cases well.',
+                    suggestedScore: 9,
+                },
+                {
+                    criteriaId: '3',
+                    feedback: 'Documentation could be improved with more detailed comments.',
+                    suggestedScore: 8,
+                },
             ],
-            summary: 'Mock analysis: overall high quality with minor improvements needed.',
+            summary: 'Overall excellent submission with minor improvements needed in documentation.',
         };
 
         return mockResponse;
