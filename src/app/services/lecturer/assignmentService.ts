@@ -189,10 +189,7 @@ export const getAssignmentsForCourse = async (
 export const getAssignmentSubmissions = async (assignmentId: string): Promise<LecturerSubmission[]> => {
     try {
         const response = await axiosInstance.get(`/submissions/${assignmentId}`);
-        console.log(`Raw response for submissions of assignment ${assignmentId}:`, response.data);
         const payload = (response.data?.data as unknown) ?? response.data;
-
-
 
         return parseLecturerSubmissionsPayload(payload);
     } catch (error) {

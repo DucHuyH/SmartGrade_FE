@@ -11,7 +11,13 @@ export const SOCKET_EVENTS = {
     GRADING_ERROR: 'grading:error',
     JOIN_COURSE: 'join:course',
     LEAVE_COURSE: 'leave:course',
+    JOIN_CHAT: 'chat:join',
+    CHAT_JOINED: 'chat:joined',
+    LEAVE_CHAT: 'chat:leave',
+    SEND_CHAT_MESSAGE: 'chat:send',
     RECEIVE_CHAT_MESSAGE: 'chat:message',
+    MARK_CHAT_SEEN: 'chat:seen',
+    CHAT_SEEN_UPDATED: 'chat:seen:updated',
 };
 
 export interface GradingStatusPayload {
@@ -32,6 +38,43 @@ export interface GradingResultPayload {
 export interface GradingErrorPayload {
     submission_id: string;
     error: string;
+}
+
+export interface ChatParticipantPayload {
+    user_id?: number | string;
+    name?: string;
+    email?: string;
+    role?: string;
+}
+
+export interface JoinChatPayload {
+    assignment_id: number | string;
+    other_user_id: number | string;
+}
+
+export interface SendChatMessagePayload extends JoinChatPayload {
+    message: string;
+    client_message_id?: string;
+}
+
+export interface ChatMessagePayload {
+    chat_id: number | string;
+    assignment_id: number | string;
+    sender_id: number | string;
+    receiver_id: number | string;
+    message: string;
+    is_read: boolean;
+    created_at: string;
+    client_message_id?: string | null;
+    sender?: ChatParticipantPayload;
+    receiver?: ChatParticipantPayload;
+}
+
+export interface ChatSeenPayload {
+    assignment_id: number | string;
+    reader_id: number | string;
+    other_user_id: number | string;
+    updated_count: number;
 }
 
 // Get the backend URL from API_BASE_URL
@@ -59,6 +102,8 @@ export const initSocket = (role: 'lecturer' | 'student' = 'lecturer'): Socket =>
         auth: {
             token: token || '',
         },
+        // Ensure credentials (cookies) are sent for servers using cookie-based auth
+        withCredentials: true,
         // Force WebSocket transport to avoid CORS issues with HTTP polling
         transports: ['websocket', 'polling'],
         reconnection: true,
@@ -102,6 +147,35 @@ export const joinCourse = (courseId: string): void => {
 export const leaveCourse = (courseId: string): void => {
     if (socket && socket.connected) {
         socket.emit(SOCKET_EVENTS.LEAVE_COURSE, courseId);
+    }
+};
+
+export const joinChat = (payload: JoinChatPayload, ack?: (response: unknown) => void): void => {
+    if (socket && socket.connected) {
+        socket.emit(SOCKET_EVENTS.JOIN_CHAT, payload, ack);
+    }
+};
+
+export const leaveChat = (payload: JoinChatPayload, ack?: (response: unknown) => void): void => {
+    if (socket && socket.connected) {
+        console.log('Emitting leaveChat with payload:', payload);
+        socket.emit(SOCKET_EVENTS.LEAVE_CHAT, payload, ack);
+    }
+};
+
+export const sendChatMessage = (
+    payload: SendChatMessagePayload,
+    ack?: (response: { ok?: boolean; data?: ChatMessagePayload; error?: string }) => void,
+): void => {
+    console.log('Emitting sendChatMessage with payload:', payload);
+    if (socket && socket.connected) {
+        socket.emit(SOCKET_EVENTS.SEND_CHAT_MESSAGE, payload, ack);
+    }
+};
+
+export const markChatSeen = (payload: JoinChatPayload, ack?: (response: { ok?: boolean; data?: ChatSeenPayload; error?: string }) => void): void => {
+    if (socket && socket.connected) {
+        socket.emit(SOCKET_EVENTS.MARK_CHAT_SEEN, payload, ack);
     }
 };
 
@@ -150,14 +224,63 @@ export const onGradingError = (callback: (payload: GradingErrorPayload) => void)
     };
 };
 
+export const onChatMessage = (callback: (payload: ChatMessagePayload) => void): (() => void) => {
+    if (!socket) {
+        return () => { };
+    }
+
+    socket.on(SOCKET_EVENTS.RECEIVE_CHAT_MESSAGE, callback);
+
+    return () => {
+        if (socket) {
+            socket.off(SOCKET_EVENTS.RECEIVE_CHAT_MESSAGE, callback);
+        }
+    };
+};
+
+export const onChatJoined = (callback: (payload: { room: string; assignment_id: number | string; other_user_id: number | string }) => void): (() => void) => {
+    if (!socket) {
+        return () => { };
+    }
+
+    socket.on(SOCKET_EVENTS.CHAT_JOINED, callback);
+
+    return () => {
+        if (socket) {
+            socket.off(SOCKET_EVENTS.CHAT_JOINED, callback);
+        }
+    };
+};
+
+export const onChatSeenUpdated = (callback: (payload: ChatSeenPayload) => void): (() => void) => {
+    if (!socket) {
+        return () => { };
+    }
+
+    socket.on(SOCKET_EVENTS.CHAT_SEEN_UPDATED, callback);
+
+    return () => {
+        if (socket) {
+            socket.off(SOCKET_EVENTS.CHAT_SEEN_UPDATED, callback);
+        }
+    };
+};
+
 export default {
     initSocket,
     getSocket,
     disconnectSocket,
     joinCourse,
     leaveCourse,
+    joinChat,
+    leaveChat,
+    sendChatMessage,
+    markChatSeen,
     onGradingStatus,
     onGradingResult,
     onGradingError,
+    onChatMessage,
+    onChatJoined,
+    onChatSeenUpdated,
     SOCKET_EVENTS,
 };

@@ -75,7 +75,7 @@ export function LecturerLayout() {
                 </Button>
               )}
             </NavLink>
-            <NavLink to="/lecturer/messages">
+            <NavLink to="/lecturer/messages-v2">
               {({ isActive }) => (
                 <Button
                   variant="ghost"

@@ -23,6 +23,8 @@ import { ViewGrade } from './app/pages/student/ViewGrade'
 import { ErrorBoundary } from './app/components/ErrorBoundary'
 import { LecturerMessages } from './app/pages/lecturer/LecturerMessages'
 import { StudentMessages } from './app/pages/student/StudentMessages'
+import { LecturerMessages_2 } from './app/pages/lecturer/LecturerMessages_2'
+import { StudentMessages_2 } from './app/pages/student/StudentMessages_2'
 
 export const router = createBrowserRouter([
   {
@@ -79,6 +81,10 @@ export const router = createBrowserRouter([
         path: 'messages',
         Component: LecturerMessages
       },
+      {
+        path: 'messages-v2',
+        Component: LecturerMessages_2
+      },
     ]
   },
   {
@@ -113,6 +119,10 @@ export const router = createBrowserRouter([
       {
         path: 'messages',
         Component: StudentMessages
+      },
+      {
+        path: 'messages-v2',
+        Component: StudentMessages_2
       }
 
     ]

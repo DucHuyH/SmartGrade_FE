@@ -110,8 +110,6 @@ export const getAssignmentsForCourse = async (
         const assignments = parseAssignmentListPayload(payload);
         const pagination = parsePagination(payload, limit);
 
-        console.log(payload);
-
         return {
             assignments,
             pagination: {
