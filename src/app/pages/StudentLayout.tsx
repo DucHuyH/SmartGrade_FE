@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router';
 import { Button } from '../components/ui/button';
-import { BookOpen, FileText, MessageSquare, BarChart, LogOut, GraduationCap, Loader2 } from 'lucide-react';
+import { BookOpen, FileText, MessageSquare, BarChart, LogOut, GraduationCap, Loader2, User } from 'lucide-react';
 import { getCurrentUser, logout } from '../services/student/authService';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
@@ -37,6 +37,14 @@ export function StudentLayout() {
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-600">{user?.name}</span>
+              <NavLink to="/student/profile">
+                {({ isActive }) => (
+                  <Button variant="outline" size="sm">
+                    <User className="h-4 w-4 mr-2" />
+                    Profile
+                  </Button>
+                )}
+              </NavLink>
               <Button variant="outline" size="sm" onClick={() => setIsLogoutDialogOpen(true)}>
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout

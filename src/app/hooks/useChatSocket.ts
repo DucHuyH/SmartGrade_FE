@@ -12,7 +12,7 @@ import {
 import { toNumericId } from '../utils/socketUtils';
 
 export interface UseChatSocketOptions {
-    assignmentId: string | number | undefined;
+    courseId: string | number | undefined;
     otherUserId: string | number | undefined;
     role: 'lecturer' | 'student';
     autoJoin?: boolean;
@@ -33,7 +33,7 @@ export interface UseChatSocketReturn {
  * Tự động khởi tạo socket, join room, lắng nghe message, và xử lý cleanup
  */
 export const useChatSocket = ({
-    assignmentId,
+    courseId,
     otherUserId,
     role,
     autoJoin = true,
@@ -47,8 +47,8 @@ export const useChatSocket = ({
     const unsubscribeRef = useRef<(() => void) | null>(null);
     const joinedRef = useRef(false);
     const sendTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const prevConversationRef = useRef<{ assignmentId: number | null; otherUserId: number | null }>({
-        assignmentId: null,
+    const prevConversationRef = useRef<{ courseId: number | null; otherUserId: number | null }>({
+        courseId: null,
         otherUserId: null,
     });
     // Store event handlers to clean them up later
@@ -63,23 +63,23 @@ export const useChatSocket = ({
     });
 
     // Validate parameters
-    const numAssignmentId = toNumericId(assignmentId);
+    const numCourseId = toNumericId(courseId);
     const numOtherUserId = toNumericId(otherUserId);
 
     // ✅ FIX 1: Handle conversation change - leave old room and clear messages
     useEffect(() => {
-        const prevAssignmentId = prevConversationRef.current.assignmentId;
+        const prevCourseId = prevConversationRef.current.courseId;
         const prevOtherUserId = prevConversationRef.current.otherUserId;
 
         // If conversation changed from a valid one to another
-        if (prevAssignmentId !== null && prevOtherUserId !== null) {
+        if (prevCourseId !== null && prevOtherUserId !== null) {
             if (
-                prevAssignmentId !== numAssignmentId ||
+                prevCourseId !== numCourseId ||
                 prevOtherUserId !== numOtherUserId
             ) {
                 console.log(
                     'Conversation changed, leaving old room:',
-                    prevAssignmentId,
+                    prevCourseId,
                     prevOtherUserId
                 );
 
@@ -93,7 +93,7 @@ export const useChatSocket = ({
                 if (socketRef.current?.connected) {
                     console.log('Emitting leave for old room immediately');
                     leaveChat({
-                        assignment_id: prevAssignmentId,
+                        course_id: prevCourseId,
                         other_user_id: prevOtherUserId,
                     });
                 }
@@ -110,15 +110,15 @@ export const useChatSocket = ({
 
         // Update previous conversation
         prevConversationRef.current = {
-            assignmentId: numAssignmentId,
+            courseId: numCourseId,
             otherUserId: numOtherUserId,
         };
-    }, [numAssignmentId, numOtherUserId]);
+    }, [numCourseId, numOtherUserId]);
 
     // Initialize socket and join chat
     useEffect(() => {
-        if (!numAssignmentId || !numOtherUserId) {
-            setError('Invalid assignment or user ID');
+        if (!numCourseId || !numOtherUserId) {
+            setError('Invalid course or user ID');
             return;
         }
 
@@ -133,16 +133,16 @@ export const useChatSocket = ({
                 // Setup connection listeners
                 const onConnect = () => {
                     console.log('Socket connected:', socketRef.current?.id);
-                    console.log('Current room:', numAssignmentId, numOtherUserId, 'joinedRef:', joinedRef.current);
+                    console.log('Current room:', numCourseId, numOtherUserId, 'joinedRef:', joinedRef.current);
                     setIsConnected(true);
 
                     // Only join if we have valid IDs and haven't joined yet
-                    if (numAssignmentId && numOtherUserId && autoJoin && !joinedRef.current) {
-                        console.log('Attempting to join chat room:', numAssignmentId, numOtherUserId);
+                    if (numCourseId && numOtherUserId && autoJoin && !joinedRef.current) {
+                        console.log('Attempting to join chat room:', numCourseId, numOtherUserId);
                         // 2. Join chat room
                         joinChat(
                             {
-                                assignment_id: numAssignmentId,
+                                course_id: numCourseId,
                                 other_user_id: numOtherUserId,
                             },
                             (response: unknown) => {
@@ -248,7 +248,7 @@ export const useChatSocket = ({
                 console.log('Emitting chat:leave event');
                 leaveChat(
                     {
-                        assignment_id: numAssignmentId,
+                        course_id: numCourseId,
                         other_user_id: numOtherUserId,
                     },
                     (response: unknown) => {
@@ -261,11 +261,11 @@ export const useChatSocket = ({
             // Note: We do NOT disconnect socket here because it may be used by other components
             console.log('Chat cleanup complete');
         };
-    }, [numAssignmentId, numOtherUserId, role, autoJoin]);
+    }, [numCourseId, numOtherUserId, role, autoJoin]);
 
     // ✅ FIX 6: Separate effect to join room after socket connects and conversation is ready
     useEffect(() => {
-        if (!numAssignmentId || !numOtherUserId || !autoJoin) {
+        if (!numCourseId || !numOtherUserId || !autoJoin) {
             return;
         }
 
@@ -274,7 +274,7 @@ export const useChatSocket = ({
             console.log('Join effect: Checking if should join room');
             console.log('Socket connected:', socketRef.current?.connected);
             console.log('Already joined:', joinedRef.current);
-            console.log('Room:', numAssignmentId, numOtherUserId);
+            console.log('Room:', numCourseId, numOtherUserId);
 
             // If socket exists, is connected, but not joined yet, join now
             if (
@@ -284,7 +284,7 @@ export const useChatSocket = ({
                 console.log('Join effect: Joining room now');
                 joinChat(
                     {
-                        assignment_id: numAssignmentId,
+                        course_id: numCourseId,
                         other_user_id: numOtherUserId,
                     },
                     (response: unknown) => {
@@ -309,12 +309,12 @@ export const useChatSocket = ({
         }, 100);
 
         return () => clearTimeout(timeout);
-    }, [numAssignmentId, numOtherUserId, autoJoin]);
+    }, [numCourseId, numOtherUserId, autoJoin]);
 
     // Send message function
     const sendMessage = useCallback(
         (text: string) => {
-            if (!text.trim() || !numAssignmentId || !numOtherUserId) {
+            if (!text.trim() || !numCourseId || !numOtherUserId) {
                 return;
             }
 
@@ -339,7 +339,7 @@ export const useChatSocket = ({
                 clearTimeout(sendTimeoutRef.current);
             }
 
-            console.log('Sending message with assignment_id:', numAssignmentId, 'other_user_id:', numOtherUserId);
+            console.log('Sending message with course_id:', numCourseId, 'other_user_id:', numOtherUserId);
 
             // Set timeout to clear loading state if no response within 20 seconds
             sendTimeoutRef.current = setTimeout(() => {
@@ -351,7 +351,7 @@ export const useChatSocket = ({
 
             sendChatMessage(
                 {
-                    assignment_id: numAssignmentId,
+                    course_id: numCourseId,
                     other_user_id: numOtherUserId,
                     message: text,
                 },
@@ -378,18 +378,18 @@ export const useChatSocket = ({
                 }
             );
         },
-        [numAssignmentId, numOtherUserId]
+        [numCourseId, numOtherUserId]
     );
 
     // Mark messages as read
     const markAsRead = useCallback(() => {
-        if (!numAssignmentId || !numOtherUserId) {
+        if (!numCourseId || !numOtherUserId) {
             return;
         }
 
         markChatSeen(
             {
-                assignment_id: numAssignmentId,
+                course_id: numCourseId,
                 other_user_id: numOtherUserId,
             },
             (response: unknown) => {
@@ -407,7 +407,7 @@ export const useChatSocket = ({
                 }
             }
         );
-    }, [numAssignmentId, numOtherUserId]);
+    }, [numCourseId, numOtherUserId]);
 
     return {
         messages,

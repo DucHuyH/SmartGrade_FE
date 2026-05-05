@@ -5,6 +5,7 @@ import { StudentLogin } from './app/pages/student/StudentLogin'
 import { LecturerLayout } from './app/pages/LecturerLayout'
 import { StudentLayout } from './app/pages/StudentLayout'
 import { LecturerDashboard } from './app/pages/lecturer/LecturerDashboard'
+import { LecturerProfile } from './app/pages/lecturer/Profile'
 import { CourseManagement } from './app/pages/lecturer/CourseManagement'
 import { CourseAssignments } from './app/pages/lecturer/CourseAsssigments'
 import { CreateAssignment } from './app/pages/lecturer/CreateAssignment'
@@ -15,6 +16,7 @@ import { AIGradingReview } from './app/pages/lecturer/AIGradingReview'
 
 
 import { StudentDashboard } from './app/pages/student/StudentDashboard'
+import { StudentProfile } from './app/pages/student/Profile'
 import { MyCourses } from './app/pages/student/MyCourses'
 import { StudentAssignments } from './app/pages/student/StudentAssignments'
 import { AssignmentDetail } from './app/pages/student/AssignmentDetail'
@@ -85,6 +87,10 @@ export const router = createBrowserRouter([
         path: 'messages-v2',
         Component: LecturerMessages_2
       },
+      {
+        path: 'profile',
+        Component: LecturerProfile
+      }
     ]
   },
   {
@@ -123,6 +129,10 @@ export const router = createBrowserRouter([
       {
         path: 'messages-v2',
         Component: StudentMessages_2
+      },
+      {
+        path: 'profile',
+        Component: StudentProfile
       }
 
     ]

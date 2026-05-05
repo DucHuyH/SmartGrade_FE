@@ -48,7 +48,7 @@ export interface ChatParticipantPayload {
 }
 
 export interface JoinChatPayload {
-    assignment_id: number | string;
+    course_id: number | string;
     other_user_id: number | string;
 }
 

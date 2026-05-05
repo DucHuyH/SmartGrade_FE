@@ -27,7 +27,6 @@ import { toast } from 'react-toastify';
 import { STUDENT_STORAGE_KEYS } from '../../../constants';
 import axiosInstance from '../../services/student/axios';
 import { getStudentCourses } from '../../services/student/courseService';
-import { getAssignmentsForCourse } from '../../services/student/assignmentService';
 import {
     fetchDirectChatThread,
     formatChatTimestamp,
@@ -61,8 +60,6 @@ interface Conversation {
     lecturerId: string | number;
     lecturerName: string;
     lecturerEmail?: string;
-    assignmentId: string | number;
-    assignmentName: string;
     lastMessage?: string;
     lastMessageTime?: string;
     unreadCount?: number;
@@ -156,16 +153,14 @@ export function StudentMessages_2() {
     // Route and UI state
     const [searchParams, setSearchParams] = useSearchParams();
     const [selectedCourseId, setSelectedCourseId] = useState<string>('');
-    const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>('');
     const [selectedLecturerId, setSelectedLecturerId] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState('');
 
     // Data state
     const [courses, setCourses] = useState<Course[]>([]);
     const [coursesLoading, setCoursesLoading] = useState(false);
-    const [assignments, setAssignments] = useState<Assignment[]>([]);
-    const [assignmentsLoading, setAssignmentsLoading] = useState(false);
     const [conversations, setConversations] = useState<Conversation[]>([]);
+    const [lecturersLoading, setLecturersLoading] = useState(false);
     const [lecturers, setLecturers] = useState<LecturerInfo[]>([]);
 
     // Message state
@@ -178,10 +173,10 @@ export function StudentMessages_2() {
 
     // Socket hook
     const socketChat: UseChatSocketReturn = useChatSocket({
-        assignmentId: selectedAssignmentId,
+        courseId: selectedCourseId,
         otherUserId: selectedLecturerId,
         role: 'student',
-        autoJoin: !!selectedAssignmentId && !!selectedLecturerId,
+        autoJoin: !!selectedCourseId && !!selectedLecturerId,
     });
 
     // ✅ Auto-scroll ref for messages
@@ -227,41 +222,13 @@ export function StudentMessages_2() {
         loadCourses();
     }, [searchParams]);
 
-    // Load assignments for selected course
+    // Load lecturer info for selected course
     useEffect(() => {
-        const loadAssignments = async () => {
+        const loadLecturerInfo = async () => {
             if (!selectedCourseId) return;
 
             try {
-                setAssignmentsLoading(true);
-                const result = await getAssignmentsForCourse(selectedCourseId, 1, 10, '');
-                setAssignments(result.assignments);
-
-                // Set first assignment as default
-                if (result.assignments.length > 0) {
-                    const assignmentIdFromParams = searchParams.get('assignmentId');
-                    setSelectedAssignmentId(
-                        assignmentIdFromParams || String(result.assignments[0].assignment_id)
-                    );
-                }
-            } catch (error) {
-                console.error('Error loading assignments:', error);
-                toast.error('Failed to load assignments');
-            } finally {
-                setAssignmentsLoading(false);
-            }
-        };
-
-        loadAssignments();
-    }, [selectedCourseId, searchParams]);
-
-    // Load lecturer info for selected assignment
-    useEffect(() => {
-        const loadLecturerInfo = async () => {
-            if (!selectedAssignmentId) return;
-
-            try {
-                setAssignmentsLoading(true);
+                setLecturersLoading(true);
                 const response = await axiosInstance.get(
                     `/courses/${selectedCourseId}/lecturer/chat`
                 );
@@ -271,16 +238,11 @@ export function StudentMessages_2() {
                 setLecturers([lecturerData]);
 
                 // Create conversation list
-                const assignment = assignments.find(
-                    (a) => String(a.assignment_id) === String(selectedAssignmentId)
-                );
                 const convos: Conversation[] = [
                     {
                         lecturerId: lecturerData.user_id,
                         lecturerName: lecturerData.name,
                         lecturerEmail: lecturerData.email,
-                        assignmentId: selectedAssignmentId,
-                        assignmentName: assignment?.title || '',
                     },
                 ];
 
@@ -289,29 +251,29 @@ export function StudentMessages_2() {
                 // Set lecturer as default
                 const lecturerIdFromParams = searchParams.get('lecturerId');
                 setSelectedLecturerId(
-                    lecturerIdFromParams || String(lecturerData.id)
+                    lecturerIdFromParams || String(lecturerData.user_id)
                 );
             } catch (error) {
                 console.error('Error loading lecturer info:', error);
                 toast.error('Failed to load lecturer information');
             } finally {
-                setAssignmentsLoading(false);
+                setLecturersLoading(false);
             }
         };
 
         loadLecturerInfo();
-    }, [selectedAssignmentId, searchParams, assignments]);
+    }, [selectedCourseId, searchParams]);
 
     // Load chat history
     useEffect(() => {
         const loadChatHistory = async () => {
-            if (!selectedAssignmentId || !selectedLecturerId) return;
+            if (!selectedCourseId || !selectedLecturerId) return;
 
             try {
                 setHistoryLoading(true);
                 const thread = await fetchDirectChatThread(
                     axiosInstance,
-                    String(selectedAssignmentId),
+                    String(selectedCourseId),
                     String(selectedLecturerId)
                 );
                 setHistoryMessages(thread.messages);
@@ -326,7 +288,7 @@ export function StudentMessages_2() {
         };
 
         loadChatHistory();
-    }, [selectedAssignmentId, selectedLecturerId]);
+    }, [selectedCourseId, selectedLecturerId]);
 
     // Merge history and socket messages with deduplication
     const allMessages = (() => {
@@ -415,7 +377,6 @@ export function StudentMessages_2() {
         setSelectedLecturerId(String(conv.lecturerId));
         setSearchParams({
             courseId: selectedCourseId,
-            assignmentId: String(conv.assignmentId),
             lecturerId: String(conv.lecturerId),
         });
     };
@@ -429,7 +390,7 @@ export function StudentMessages_2() {
             </div>
 
             {/* Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                         Course
@@ -442,27 +403,6 @@ export function StudentMessages_2() {
                             {Array.isArray(courses) && courses.map((course) => (
                                 <SelectItem key={course.course_id} value={String(course.course_id)}>
                                     {course.course_code} - {course.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Assignment
-                    </label>
-                    <Select
-                        value={selectedAssignmentId}
-                        onValueChange={setSelectedAssignmentId}
-                    >
-                        <SelectTrigger disabled={assignmentsLoading}>
-                            <SelectValue placeholder="Select an assignment" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {Array.isArray(assignments) && assignments.map((assignment) => (
-                                <SelectItem key={assignment.assignment_id} value={String(assignment.assignment_id)}>
-                                    {assignment.title}
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -495,7 +435,7 @@ export function StudentMessages_2() {
                         {/* Conversations list */}
                         <ScrollArea className="flex-1">
                             <div className="space-y-2 pr-4">
-                                {assignmentsLoading ? (
+                                {lecturersLoading ? (
                                     <div className="flex items-center justify-center py-8">
                                         <Loader2 className="w-5 h-5 animate-spin text-red-500" />
                                     </div>
@@ -507,26 +447,23 @@ export function StudentMessages_2() {
                                 ) : (
                                     filteredConversations.map((conv) => (
                                         <button
-                                            key={`${conv.lecturerId}-${conv.assignmentId}`}
+                                            key={`${conv.lecturerId}`}
                                             onClick={() => handleSelectConversation(conv)}
                                             className={`w-full text-left p-3 rounded-lg transition-colors ${String(selectedLecturerId) === String(conv.lecturerId)
-                                                ? 'bg-red-100 border-2 border-red-500'
+                                                ? 'bg-red-600 text-white'
                                                 : 'hover:bg-gray-100'
                                                 }`}
                                         >
-                                            <div className="font-medium text-sm text-gray-900">
+                                            <div className={`font-medium text-sm ${String(selectedLecturerId) === String(conv.lecturerId) ? 'text-white' : 'text-gray-900'}`}>
                                                 {conv.lecturerName}
                                             </div>
-                                            <div className="text-xs text-gray-500">
-                                                {conv.assignmentName}
-                                            </div>
                                             {conv.lecturerEmail && (
-                                                <div className="text-xs text-gray-400 mt-1">
+                                                <div className={`text-xs mt-1 ${String(selectedLecturerId) === String(conv.lecturerId) ? 'text-red-100' : 'text-gray-400'}`}>
                                                     {conv.lecturerEmail}
                                                 </div>
                                             )}
                                             {conv.unreadCount && conv.unreadCount > 0 && (
-                                                <Badge className="mt-1 bg-red-500">
+                                                <Badge className={`mt-1 ${String(selectedLecturerId) === String(conv.lecturerId) ? 'bg-white text-red-600 hover:bg-white' : 'bg-red-500'}`}>
                                                     {conv.unreadCount}
                                                 </Badge>
                                             )}
@@ -552,9 +489,7 @@ export function StudentMessages_2() {
                                             )?.lecturerName || 'Lecturer'}
                                         </CardTitle>
                                         <p className="text-sm text-gray-500">
-                                            {conversations.find(
-                                                (c) => String(c.lecturerId) === String(selectedLecturerId)
-                                            )?.assignmentName || 'Assignment Discussion'}
+                                            Course Discussion
                                         </p>
                                     </div>
                                     {socketChat.error && (

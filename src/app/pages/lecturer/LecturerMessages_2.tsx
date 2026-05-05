@@ -27,7 +27,6 @@ import { toast } from 'react-toastify';
 import { LECTURER_STORAGE_KEYS } from '../../../constants';
 import axiosInstance from '../../services/lecturer/axios';
 import { getAllCourses, getCourseStudents } from '../../services/lecturer/courseService';
-import { getAssignmentsForCourse, getAssignmentSubmissions } from '../../services/lecturer/assignmentService';
 import {
     fetchDirectChatThread,
     formatChatTimestamp,
@@ -46,15 +45,14 @@ interface StudentInfo {
     id: string | number;
     name: string;
     email?: string;
-    avatar?: string;
+    userCode?: string;
 }
 
 interface Conversation {
     studentId: string | number;
     studentName: string;
     studentEmail?: string;
-    assignmentId: string | number;
-    assignmentName: string;
+    userCode?: string;
     lastMessage?: string;
     lastMessageTime?: string;
     unreadCount?: number;
@@ -148,16 +146,14 @@ export function LecturerMessages_2() {
     // Route and UI state
     const [searchParams, setSearchParams] = useSearchParams();
     const [selectedCourseId, setSelectedCourseId] = useState<string>('');
-    const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>('');
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState('');
 
     // Data state
     const [courses, setCourses] = useState<Course[]>([]);
     const [coursesLoading, setCoursesLoading] = useState(false);
-    const [assignments, setAssignments] = useState<any[]>([]);
-    const [assignmentsLoading, setAssignmentsLoading] = useState(false);
     const [conversations, setConversations] = useState<Conversation[]>([]);
+    const [studentsLoading, setStudentsLoading] = useState(false);
     const [students, setStudents] = useState<StudentInfo[]>([]);
 
     // Message state
@@ -170,10 +166,10 @@ export function LecturerMessages_2() {
 
     // Socket hook
     const socketChat: UseChatSocketReturn = useChatSocket({
-        assignmentId: selectedAssignmentId,
+        courseId: selectedCourseId,
         otherUserId: selectedStudentId,
         role: 'lecturer',
-        autoJoin: !!selectedAssignmentId && !!selectedStudentId,
+        autoJoin: !!selectedCourseId && !!selectedStudentId,
     });
 
     // ✅ Auto-scroll ref for messages
@@ -201,7 +197,6 @@ export function LecturerMessages_2() {
                 setCoursesLoading(true);
                 const courseData = await getAllCourses({});
 
-
                 // Handle both array and object responses
                 const courseArray = Array.isArray(courseData)
                     ? courseData
@@ -227,127 +222,77 @@ export function LecturerMessages_2() {
         loadCourses();
     }, [searchParams]);
 
-    // Load assignments for selected course
+    // Load students for selected course
     useEffect(() => {
-        const loadAssignments = async () => {
+        const loadStudentsForCourse = async () => {
             if (!selectedCourseId) return;
 
             try {
-                setAssignmentsLoading(true);
-                const result = await getAssignmentsForCourse(selectedCourseId, 1, 100, '');
+                setStudentsLoading(true);
+                const studentData = await getCourseStudents(selectedCourseId);
+
+                console.log('Raw student data:', studentData);
 
                 // Handle various response formats
-                let assignmentList: any[] = [];
-                if (Array.isArray(result)) {
-                    assignmentList = result;
-                } else if (result?.data.course && Array.isArray(result.data.course)) {
-                    assignmentList = result.data.course;
-                } else if (result?.data && Array.isArray(result.data)) {
-                    assignmentList = result.data;
-                } else if (typeof result === 'object' && !Array.isArray(result)) {
-                    // If it's an object, try to extract array from common properties
-                    assignmentList = Object.values(result).find((v) => Array.isArray(v)) || [];
+                let studentList: StudentInfo[] = [];
+
+                // From the screenshot, the data is in studentData.data.course
+                const rawList = Array.isArray(studentData)
+                    ? studentData
+                    : (studentData?.data?.course || studentData?.data || []);
+
+                if (Array.isArray(rawList)) {
+                    studentList = rawList.map((student: any) => ({
+                        id: student.user_id || student.id || student.student_id,
+                        name: student.name || student.student_name || 'Unknown Student',
+                        email: student.email || student.student_email,
+                        userCode: student.user_code,
+                    }));
                 }
 
-
-
-                // Ensure it's always an array
-                if (!Array.isArray(assignmentList)) {
-                    assignmentList = [];
-                }
-
-                setAssignments(assignmentList);
-
-                // Set first assignment as default
-                if (assignmentList.length > 0) {
-                    const assignmentIdFromParams = searchParams.get('assignmentId');
-                    setSelectedAssignmentId(
-                        assignmentIdFromParams || String(assignmentList[0].assignment_id || assignmentList[0].id)
-                    );
-                }
-            } catch (error) {
-                console.error('Error loading assignments:', error);
-                toast.error('Failed to load assignments');
-                setAssignments([]);
-            } finally {
-                setAssignmentsLoading(false);
-            }
-        };
-
-        loadAssignments();
-    }, [selectedCourseId, searchParams]);
-
-    // Load students for selected assignment
-    useEffect(() => {
-        const loadStudents = async () => {
-            if (!selectedAssignmentId) return;
-
-            try {
-                setAssignmentsLoading(true);
-                const submissions = await getAssignmentSubmissions(
-                    String(selectedAssignmentId)
-                );
-
-                // Extract unique students from submissions
-                const studentMap = new Map<string | number, StudentInfo>();
-                submissions.forEach((submission: any) => {
-                    const studentId = submission.student_id;
-                    if (studentId && !studentMap.has(studentId)) {
-                        studentMap.set(studentId, {
-                            id: studentId,
-                            name: submission.student_name || 'Unknown Student',
-                            email: submission.student_email,
-                        });
-                    }
-                });
-
-                const studentData = Array.from(studentMap.values());
-                setStudents(studentData);
-
-                // Find the assignment name
-                const assignment = assignments.find(
-                    (a) => String(a.assignment_id || a.id) === String(selectedAssignmentId)
-                );
+                setStudents(studentList);
 
                 // Create conversation list from students
-                const convos: Conversation[] = studentData.map((student) => ({
+                const convos: Conversation[] = studentList.map((student) => ({
                     studentId: student.id,
                     studentName: student.name,
                     studentEmail: student.email,
-                    assignmentId: selectedAssignmentId,
-                    assignmentName: assignment?.title || assignment?.name || '',
+                    userCode: student.userCode,
                 }));
 
                 setConversations(convos);
 
                 // Set first student as default
-                if (studentData.length > 0) {
+                if (studentList.length > 0) {
                     const studentIdFromParams = searchParams.get('studentId');
                     setSelectedStudentId(
-                        studentIdFromParams || String(studentData[0].id)
+                        studentIdFromParams || String(studentList[0].id)
                     );
                 }
             } catch (error) {
                 console.error('Error loading students:', error);
-                // Don't show error toast as not all assignments may have submissions
+                toast.error('Failed to load students');
+                setStudents([]);
+                setConversations([]);
             } finally {
-                setAssignmentsLoading(false);
+                setStudentsLoading(false);
             }
         };
 
-        loadStudents();
-    }, [selectedAssignmentId, searchParams]);
+        loadStudentsForCourse();
+    }, [selectedCourseId, searchParams]);
+
 
     // Load chat history
     useEffect(() => {
         const loadChatHistory = async () => {
-            if (!selectedAssignmentId || !selectedStudentId) return;
+            if (!selectedCourseId || !selectedStudentId) return;
 
             try {
                 setHistoryLoading(true);
                 const thread = await fetchDirectChatThread(
                     axiosInstance,
-                    String(selectedAssignmentId),
+                    String(selectedCourseId),
                     String(selectedStudentId)
                 );
                 setHistoryMessages(thread.messages);
@@ -363,7 +308,7 @@ export function LecturerMessages_2() {
         };
 
         loadChatHistory();
-    }, [selectedAssignmentId, selectedStudentId]);
+    }, [selectedCourseId, selectedStudentId]);
 
     // Merge history and socket messages with deduplication
     const allMessages = (() => {
@@ -452,7 +397,6 @@ export function LecturerMessages_2() {
         setSelectedStudentId(String(conv.studentId));
         setSearchParams({
             courseId: selectedCourseId,
-            assignmentId: String(conv.assignmentId),
             studentId: String(conv.studentId),
         });
     };
@@ -466,7 +410,7 @@ export function LecturerMessages_2() {
             </div>
 
             {/* Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                         Course
@@ -481,32 +425,6 @@ export function LecturerMessages_2() {
                                     {course.course_code} - {course.name}
                                 </SelectItem>
                             ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Assignment
-                    </label>
-                    <Select
-                        value={selectedAssignmentId}
-                        onValueChange={setSelectedAssignmentId}
-                    >
-                        <SelectTrigger disabled={assignmentsLoading}>
-                            <SelectValue placeholder="Select an assignment" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {Array.isArray(assignments) && assignments.length > 0 ? (
-                                assignments.map((assignment) => (
-                                    <SelectItem
-                                        key={assignment.assignment_id || assignment.id}
-                                        value={String(assignment.assignment_id || assignment.id)}
-                                    >
-                                        {assignment.title || assignment.name}
-                                    </SelectItem>
-                                ))
-                            ) : null}
                         </SelectContent>
                     </Select>
                 </div>
@@ -537,7 +455,7 @@ export function LecturerMessages_2() {
                         {/* Conversations list */}
                         <ScrollArea className="flex-1">
                             <div className="space-y-2 pr-4">
-                                {assignmentsLoading ? (
+                                {studentsLoading ? (
                                     <div className="flex items-center justify-center py-8">
                                         <Loader2 className="w-5 h-5 animate-spin text-red-500" />
                                     </div>
@@ -549,23 +467,30 @@ export function LecturerMessages_2() {
                                 ) : (
                                     filteredConversations.map((conv) => (
                                         <button
-                                            key={`${conv.studentId}-${conv.assignmentId}`}
+                                            key={`${conv.studentId}`}
                                             onClick={() => handleSelectConversation(conv)}
                                             className={`w-full text-left p-3 rounded-lg transition-colors ${String(selectedStudentId) === String(conv.studentId)
-                                                ? 'bg-red-100 border-2 border-red-500'
+                                                ? 'bg-red-600 text-white'
                                                 : 'hover:bg-gray-100'
                                                 }`}
                                         >
-                                            <div className="font-medium text-sm text-gray-900">
-                                                {conv.studentName}
+                                            <div className="flex items-center justify-between">
+                                                <div className={`font-medium text-sm ${String(selectedStudentId) === String(conv.studentId) ? 'text-white' : 'text-gray-900'}`}>
+                                                    {conv.studentName}
+                                                </div>
+                                                {conv.userCode && (
+                                                    <span className={`text-xs ml-3 px-2 py-0.5 rounded-full ${String(selectedStudentId) === String(conv.studentId) ? 'bg-red-400 text-white' : 'bg-gray-200 text-gray-600'}`}>
+                                                        {conv.userCode}
+                                                    </span>
+                                                )}
                                             </div>
                                             {conv.studentEmail && (
-                                                <div className="text-xs text-gray-500">
+                                                <div className={`text-xs ${String(selectedStudentId) === String(conv.studentId) ? 'text-red-100' : 'text-gray-500'}`}>
                                                     {conv.studentEmail}
                                                 </div>
                                             )}
                                             {conv.unreadCount && conv.unreadCount > 0 && (
-                                                <Badge className="mt-1 bg-red-500">
+                                                <Badge className={`mt-1 ${String(selectedStudentId) === String(conv.studentId) ? 'bg-white text-red-600 hover:bg-white' : 'bg-red-500'}`}>
                                                     {conv.unreadCount}
                                                 </Badge>
                                             )}

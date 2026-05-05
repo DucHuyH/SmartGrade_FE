@@ -133,12 +133,12 @@ const resolvePeer = (messages: DirectChatMessage[], currentUserId: number) => {
 
 export const fetchDirectChatThread = async (
     axiosInstance: AxiosInstance,
-    assignmentId: string | number,
+    courseId: string | number,
     currentUserId: string | number,
 ): Promise<DirectChatThread> => {
-    
+
     const numericUserId = toNumber(currentUserId)
-    console.log('Fetching direct chat thread for assignment:', assignmentId, 'and user ID:', numericUserId);
+    console.log('Fetching direct chat thread for course:', courseId, 'and user ID:', numericUserId);
 
     if (numericUserId === null) {
         throw new Error('Invalid current user id for direct chat')
@@ -146,7 +146,7 @@ export const fetchDirectChatThread = async (
 
     const response = await axiosInstance.get('/chat/messages', {
         params: {
-            assignment_id: assignmentId,
+            course_id: courseId,
             user_id: numericUserId,
         },
     })
