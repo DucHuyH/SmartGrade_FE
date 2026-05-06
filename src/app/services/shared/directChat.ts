@@ -46,6 +46,31 @@ export interface DirectChatThread {
     peerRole: ChatRole | string | null
 }
 
+export interface ChatConversationApiParticipant extends ChatParticipant {
+    user_code?: string
+}
+
+export interface ChatConversationApiItem {
+    course_id?: number | string
+    other_user?: ChatConversationApiParticipant
+    last_message?: ChatApiMessage | null
+    unread_count?: number | string
+    unreadCount?: number | string
+}
+
+export interface ChatConversationSummary {
+    courseId: number | string | null
+    otherUserId: number | null
+    otherUserName: string
+    otherUserEmail: string
+    otherUserCode: string
+    otherUserRole: ChatRole | string | null
+    lastMessage: string
+    lastMessageTime: string
+    unreadCount: number
+    lastMessageIsRead: boolean
+}
+
 const toNumber = (value: unknown): number | null => {
     const parsed = Number(value)
     return Number.isFinite(parsed) ? parsed : null
@@ -131,6 +156,35 @@ const resolvePeer = (messages: DirectChatMessage[], currentUserId: number) => {
     }
 }
 
+const normalizeConversation = (
+    raw: any,
+    currentUserId: number,
+): ChatConversationSummary | null => {
+    if (!raw || typeof raw !== 'object') {
+        return null
+    }
+
+    const otherUser = raw.other_user ?? raw.otherUser ?? {}
+    const otherUserId = toNumber(otherUser.user_id ?? otherUser.id)
+    const lastMessageRaw = raw.last_message ?? raw.lastMessage ?? null
+    const lastMessage = lastMessageRaw ? normalizeMessage(lastMessageRaw, currentUserId) : null
+    const rawUnreadCount = raw.unread_count ?? raw.unreadCount
+    const unreadCount = Number(rawUnreadCount)
+
+    return {
+        courseId: raw.course_id ?? raw.courseId ?? null,
+        otherUserId,
+        otherUserName: String(otherUser.name ?? otherUser.full_name ?? 'Unknown User'),
+        otherUserEmail: String(otherUser.email ?? ''),
+        otherUserCode: String(otherUser.user_code ?? otherUser.userCode ?? ''),
+        otherUserRole: otherUser.role ?? null,
+        lastMessage: lastMessage?.content ?? '',
+        lastMessageTime: lastMessage?.createdAt ?? '',
+        unreadCount: Number.isFinite(unreadCount) ? unreadCount : 0,
+        lastMessageIsRead: lastMessage?.isRead ?? false,
+    }
+}
+
 export const fetchDirectChatThread = async (
     axiosInstance: AxiosInstance,
     courseId: string | number,
@@ -171,6 +225,40 @@ export const fetchDirectChatThread = async (
         messages,
         ...peer,
     }
+}
+
+export const fetchChatConversations = async (
+    axiosInstance: AxiosInstance,
+    courseId: string | number,
+    currentUserId: string | number,
+): Promise<ChatConversationSummary[]> => {
+    const numericUserId = toNumber(currentUserId)
+
+    if (numericUserId === null) {
+        throw new Error('Invalid current user id for conversation list')
+    }
+
+    const response = await axiosInstance.get('/chat/conversations', {
+        params: {
+            course_id: courseId,
+            user_id: numericUserId,
+        },
+    })
+
+    const payloadItems = unwrapArrayPayload(response.data)
+
+    return payloadItems
+        .map((item) => normalizeConversation(item, numericUserId))
+        .filter((item): item is ChatConversationSummary => item !== null)
+        .sort((left, right) => {
+            const leftTime = new Date(left.lastMessageTime || '').getTime()
+            const rightTime = new Date(right.lastMessageTime || '').getTime()
+
+            if (Number.isNaN(leftTime) && Number.isNaN(rightTime)) return 0
+            if (Number.isNaN(leftTime)) return 1
+            if (Number.isNaN(rightTime)) return -1
+            return rightTime - leftTime
+        })
 }
 
 export const formatChatTimestamp = (value: string): string => {

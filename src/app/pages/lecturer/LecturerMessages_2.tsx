@@ -26,36 +26,20 @@ import {
 import { toast } from 'react-toastify';
 import { LECTURER_STORAGE_KEYS } from '../../../constants';
 import axiosInstance from '../../services/lecturer/axios';
-import { getAllCourses, getCourseStudents } from '../../services/lecturer/courseService';
+import { getAllCourses } from '../../services/lecturer/courseService';
 import {
+    fetchChatConversations,
     fetchDirectChatThread,
     formatChatTimestamp,
+    type ChatConversationSummary,
     type DirectChatMessage,
 } from '../../services/shared/directChat';
 import { useChatSocket, type UseChatSocketReturn } from '../../hooks/useChatSocket';
-import { toNumericId } from '../../utils/socketUtils';
 
 interface Course {
     course_id: string | number;
     course_code: string;
     name: string;
-}
-
-interface StudentInfo {
-    id: string | number;
-    name: string;
-    email?: string;
-    userCode?: string;
-}
-
-interface Conversation {
-    studentId: string | number;
-    studentName: string;
-    studentEmail?: string;
-    userCode?: string;
-    lastMessage?: string;
-    lastMessageTime?: string;
-    unreadCount?: number;
 }
 
 // ✅ Helper function to format date for date separators
@@ -95,6 +79,28 @@ const groupMessagesByDate = (messages: any[]) => {
     });
 
     return groups;
+};
+
+const getConversationInitials = (name: string): string => {
+    const words = name.trim().split(/\s+/).filter(Boolean);
+
+    if (words.length === 0) {
+        return 'U';
+    }
+
+    if (words.length === 1) {
+        return words[0].slice(0, 1).toUpperCase();
+    }
+
+    return `${words[0][0]}${words[1][0]}`.toUpperCase();
+};
+
+const getConversationPreview = (conversation: ChatConversationSummary): string => {
+    if (!conversation.lastMessage) {
+        return 'No messages yet';
+    }
+
+    return conversation.lastMessage;
 };
 
 // ✅ Message templates for lecturers
@@ -152,9 +158,8 @@ export function LecturerMessages_2() {
     // Data state
     const [courses, setCourses] = useState<Course[]>([]);
     const [coursesLoading, setCoursesLoading] = useState(false);
-    const [conversations, setConversations] = useState<Conversation[]>([]);
-    const [studentsLoading, setStudentsLoading] = useState(false);
-    const [students, setStudents] = useState<StudentInfo[]>([]);
+    const [conversations, setConversations] = useState<ChatConversationSummary[]>([]);
+    const [conversationsLoading, setConversationsLoading] = useState(false);
 
     // Message state
     const [messageInput, setMessageInput] = useState('');
@@ -175,6 +180,7 @@ export function LecturerMessages_2() {
     // ✅ Auto-scroll ref for messages
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const prevSocketCountRef = useRef<number>(0);
 
     // Get current user
     useEffect(() => {
@@ -222,78 +228,55 @@ export function LecturerMessages_2() {
         loadCourses();
     }, [searchParams]);
 
-    // Load students for selected course
+    // Load conversations for selected course and lecturer
     useEffect(() => {
-        const loadStudentsForCourse = async () => {
-            if (!selectedCourseId) return;
+        const loadConversationsForCourse = async () => {
+            if (!selectedCourseId || !currentUserId) return;
 
             try {
-                setStudentsLoading(true);
-                const studentData = await getCourseStudents(selectedCourseId);
+                setConversationsLoading(true);
+                const conversationList = await fetchChatConversations(
+                    axiosInstance,
+                    selectedCourseId,
+                    currentUserId
+                );
 
-                console.log('Raw student data:', studentData);
+                setConversations(conversationList);
 
-                // Handle various response formats
-                let studentList: StudentInfo[] = [];
+                const studentIdFromParams = searchParams.get('studentId');
+                const initialConversation = studentIdFromParams
+                    ? conversationList.find(
+                        (conversation) => String(conversation.otherUserId) === studentIdFromParams
+                    )
+                    : conversationList[0];
 
-                // From the screenshot, the data is in studentData.data.course
-                const rawList = Array.isArray(studentData)
-                    ? studentData
-                    : (studentData?.data?.course || studentData?.data || []);
-
-                if (Array.isArray(rawList)) {
-                    studentList = rawList.map((student: any) => ({
-                        id: student.user_id || student.id || student.student_id,
-                        name: student.name || student.student_name || 'Unknown Student',
-                        email: student.email || student.student_email,
-                        userCode: student.user_code,
-                    }));
-                }
-
-                setStudents(studentList);
-
-                // Create conversation list from students
-                const convos: Conversation[] = studentList.map((student) => ({
-                    studentId: student.id,
-                    studentName: student.name,
-                    studentEmail: student.email,
-                    userCode: student.userCode,
-                }));
-
-                setConversations(convos);
-
-                // Set first student as default
-                if (studentList.length > 0) {
-                    const studentIdFromParams = searchParams.get('studentId');
-                    setSelectedStudentId(
-                        studentIdFromParams || String(studentList[0].id)
-                    );
+                if (initialConversation?.otherUserId !== null && initialConversation?.otherUserId !== undefined) {
+                    setSelectedStudentId(String(initialConversation.otherUserId));
                 }
             } catch (error) {
-                console.error('Error loading students:', error);
-                toast.error('Failed to load students');
-                setStudents([]);
+                console.error('Error loading conversations:', error);
+                toast.error('Failed to load conversations');
                 setConversations([]);
             } finally {
-                setStudentsLoading(false);
+                setConversationsLoading(false);
             }
         };
 
-        loadStudentsForCourse();
-    }, [selectedCourseId, searchParams]);
+        loadConversationsForCourse();
+    }, [selectedCourseId, currentUserId, searchParams]);
 
 
     // Load chat history
     useEffect(() => {
         const loadChatHistory = async () => {
-            if (!selectedCourseId || !selectedStudentId) return;
+            if (!selectedCourseId || !selectedStudentId || !currentUserId) return;
 
             try {
                 setHistoryLoading(true);
                 const thread = await fetchDirectChatThread(
                     axiosInstance,
                     String(selectedCourseId),
-                    String(selectedStudentId)
+                    String(selectedStudentId),
                 );
                 setHistoryMessages(thread.messages);
                 console.log('Loaded chat history:', thread.messages);
@@ -308,7 +291,7 @@ export function LecturerMessages_2() {
         };
 
         loadChatHistory();
-    }, [selectedCourseId, selectedStudentId]);
+    }, [selectedCourseId, selectedStudentId, currentUserId]);
 
     // Merge history and socket messages with deduplication
     const allMessages = (() => {
@@ -366,14 +349,52 @@ export function LecturerMessages_2() {
     }, [allMessages]);
 
     // Filter conversations based on search
-    const filteredConversations = conversations.filter((conv) =>
-        conv.studentName.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredConversations = conversations.filter((conversation) => {
+        const query = searchQuery.toLowerCase();
+
+        return [
+            conversation.otherUserName,
+            conversation.otherUserEmail,
+            conversation.otherUserCode,
+            conversation.lastMessage,
+        ]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(query));
+    });
 
     const handleSendMessage = () => {
         if (!messageInput.trim()) {
             toast.warning('Please enter a message');
             return;
+        }
+
+        // Optimistically update conversation preview for the currently selected conversation
+        try {
+            const now = new Date().toISOString();
+
+            setConversations((prev) => {
+                const updated = prev.map((c) => {
+                    if (String(c.otherUserId) === String(selectedStudentId)) {
+                        return {
+                            ...c,
+                            lastMessage: messageInput,
+                            lastMessageTime: now,
+                            lastMessageIsRead: true,
+                        };
+                    }
+                    return c;
+                });
+
+                // Move selected conv to top if exists
+                const idx = updated.findIndex((c) => String(c.otherUserId) === String(selectedStudentId));
+                if (idx > 0) {
+                    const [item] = updated.splice(idx, 1);
+                    return [item, ...updated];
+                }
+                return updated;
+            });
+        } catch (err) {
+            console.error('Error updating conversation preview optimistically:', err);
         }
 
         socketChat.sendMessage(messageInput);
@@ -382,6 +403,85 @@ export function LecturerMessages_2() {
         // Show success toast
         toast.success('Message sent');
     };
+
+    // Sync conversation list when socket messages arrive
+    useEffect(() => {
+        const msgs = socketChat.messages || [];
+        if (!msgs.length) {
+            prevSocketCountRef.current = 0;
+            return;
+        }
+
+        const start = Math.max(0, prevSocketCountRef.current);
+        const newMsgs = msgs.slice(start);
+        if (newMsgs.length === 0) return;
+
+        newMsgs.forEach((m) => {
+            const senderId = String(m.sender_id ?? m.sender?.user_id ?? '');
+            const receiverId = String(m.receiver_id ?? m.receiver?.user_id ?? '');
+            const partnerId = String(senderId === String(currentUserId) ? receiverId : senderId);
+            const text = String(m.message ?? '');
+            const time = String(m.created_at ?? '');
+            const isFromMe = String(m.sender_id) === String(currentUserId);
+
+            setConversations((prev) => {
+                let found = false;
+                const updated = prev.map((c) => {
+                    if (String(c.otherUserId) === partnerId) {
+                        found = true;
+                        const isActive = String(partnerId) === String(selectedStudentId);
+                        return {
+                            ...c,
+                            lastMessage: text,
+                            lastMessageTime: time,
+                            lastMessageIsRead: isActive ? true : (isFromMe ? true : false),
+                            unreadCount: isActive ? 0 : (isFromMe ? c.unreadCount : ((c.unreadCount || 0) + 1)),
+                        };
+                    }
+                    return c;
+                });
+
+                if (found) {
+                    const top = updated.find((c) => String(c.otherUserId) === partnerId)!;
+                    const rest = updated.filter((c) => String(c.otherUserId) !== partnerId);
+                    if (String(partnerId) === String(selectedStudentId)) {
+                        try {
+                            socketChat.markAsRead();
+                        } catch (err) {
+                            console.error('Error marking chat as read via socket:', err);
+                        }
+                    }
+                    return [top, ...rest];
+                }
+
+                const isActiveNew = String(partnerId) === String(selectedStudentId);
+                const newConv: ChatConversationSummary = {
+                    courseId: null,
+                    otherUserId: partnerId as unknown as number,
+                    otherUserName: (m.sender?.name ?? m.receiver?.name ?? 'Unknown') as string,
+                    otherUserEmail: (m.sender?.email ?? m.receiver?.email ?? '') as string,
+                    otherUserCode: '',
+                    otherUserRole: m.sender?.role ?? null,
+                    lastMessage: text,
+                    lastMessageTime: time,
+                    unreadCount: isActiveNew ? 0 : (isFromMe ? 0 : 1),
+                    lastMessageIsRead: isActiveNew ? true : isFromMe,
+                };
+
+                if (isActiveNew) {
+                    try {
+                        socketChat.markAsRead();
+                    } catch (err) {
+                        console.error('Error marking new chat as read via socket:', err);
+                    }
+                }
+
+                return [newConv, ...prev];
+            });
+        });
+
+        prevSocketCountRef.current = msgs.length;
+    }, [socketChat.messages, currentUserId, selectedStudentId]);
 
     const handleMarkAsRead = () => {
         socketChat.markAsRead();
@@ -393,16 +493,16 @@ export function LecturerMessages_2() {
         }
     };
 
-    const handleSelectConversation = (conv: Conversation) => {
-        setSelectedStudentId(String(conv.studentId));
+    const handleSelectConversation = (conv: ChatConversationSummary) => {
+        setSelectedStudentId(String(conv.otherUserId));
         setSearchParams({
             courseId: selectedCourseId,
-            studentId: String(conv.studentId),
+            studentId: String(conv.otherUserId),
         });
     };
 
     return (
-        <div className="flex flex-col gap-4 p-6 h-screen bg-gray-50">
+        <div className="flex min-h-screen flex-col gap-4 bg-gray-50 p-4 lg:p-6 overflow-x-hidden">
             {/* Header */}
             <div className="mb-4">
                 <h1 className="text-3xl font-bold text-gray-900">Messages</h1>
@@ -431,21 +531,27 @@ export function LecturerMessages_2() {
             </div>
 
             {/* Main content */}
-            <div className="flex flex-1 gap-4 min-h-0">
+            <div className="flex flex-1 flex-col gap-4 min-h-0 lg:flex-row lg:items-stretch">
                 {/* Conversations list */}
-                <Card className="w-full md:w-80 flex flex-col">
-                    <CardHeader className="pb-3">
-                        <CardTitle className="text-lg flex items-center gap-2">
-                            <MessageCircle className="w-5 h-5" />
-                            Conversations
-                        </CardTitle>
+                <Card className="w-full flex flex-col lg:w-96 lg:min-w-[20rem] max-w-full overflow-hidden">
+                    <CardHeader className="pb-3 border-b">
+                        <div className="flex items-start justify-between gap-3">
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <MessageCircle className="w-5 h-5" />
+                                Conversations
+                            </CardTitle>
+                            <Badge variant="secondary" className="shrink-0">
+                                {conversations.length}
+                            </Badge>
+                        </div>
                     </CardHeader>
-                    <CardContent className="flex-1 flex flex-col pb-3">
+
+                    <CardContent className="flex-1 flex flex-col pb-3 overflow-hidden">
                         {/* Search */}
                         <div className="relative mb-3">
-                            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                             <Input
-                                placeholder="Search students..."
+                                placeholder="Search people or messages..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="pl-8"
@@ -453,57 +559,83 @@ export function LecturerMessages_2() {
                         </div>
 
                         {/* Conversations list */}
-                        <ScrollArea className="flex-1">
-                            <div className="space-y-2 pr-4">
-                                {studentsLoading ? (
-                                    <div className="flex items-center justify-center py-8">
-                                        <Loader2 className="w-5 h-5 animate-spin text-red-500" />
-                                    </div>
-                                ) : filteredConversations.length === 0 ? (
-                                    <div className="text-center py-8 text-gray-500">
-                                        <User className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                                        <p>No conversations found</p>
-                                    </div>
-                                ) : (
-                                    filteredConversations.map((conv) => (
-                                        <button
-                                            key={`${conv.studentId}`}
-                                            onClick={() => handleSelectConversation(conv)}
-                                            className={`w-full text-left p-3 rounded-lg transition-colors ${String(selectedStudentId) === String(conv.studentId)
-                                                ? 'bg-red-600 text-white'
-                                                : 'hover:bg-gray-100'
-                                                }`}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <div className={`font-medium text-sm ${String(selectedStudentId) === String(conv.studentId) ? 'text-white' : 'text-gray-900'}`}>
-                                                    {conv.studentName}
-                                                </div>
-                                                {conv.userCode && (
-                                                    <span className={`text-xs ml-3 px-2 py-0.5 rounded-full ${String(selectedStudentId) === String(conv.studentId) ? 'bg-red-400 text-white' : 'bg-gray-200 text-gray-600'}`}>
-                                                        {conv.userCode}
-                                                    </span>
-                                                )}
+                        <ScrollArea className="flex-1 pr-2">
+                            <div className="space-y-2">
+                                {filteredConversations.map((conv) => (
+                                    <button
+                                        key={conv.otherUserId}
+                                        onClick={() => handleSelectConversation(conv)}
+                                        className={`w-full text-left p-3 rounded-xl border transition-all overflow-hidden ${String(selectedStudentId) === String(conv.otherUserId)
+                                            ? 'bg-red-50 border-red-200 shadow-sm'
+                                            : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        <div className="flex items-start gap-3 min-w-0">
+                                            {/* Avatar */}
+                                            <div
+                                                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${String(selectedStudentId) === String(conv.otherUserId)
+                                                    ? 'bg-red-600 text-white'
+                                                    : 'bg-gray-200 text-gray-700'
+                                                    }`}
+                                            >
+                                                {getConversationInitials(conv.otherUserName)}
                                             </div>
-                                            {conv.studentEmail && (
-                                                <div className={`text-xs ${String(selectedStudentId) === String(conv.studentId) ? 'text-red-100' : 'text-gray-500'}`}>
-                                                    {conv.studentEmail}
+
+                                            {/* Content */}
+                                            <div className="flex-1 min-w-0 overflow-hidden">
+                                                {/* Name + time */}
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="font-semibold text-sm text-gray-900 wrap-break-word">
+                                                        {conv.otherUserName}
+                                                    </div>
+                                                    <span className="text-xs text-gray-500 shrink-0">
+                                                        {formatChatTimestamp(conv.lastMessageTime)}
+                                                    </span>
                                                 </div>
-                                            )}
-                                            {conv.unreadCount && conv.unreadCount > 0 && (
-                                                <Badge className={`mt-1 ${String(selectedStudentId) === String(conv.studentId) ? 'bg-white text-red-600 hover:bg-white' : 'bg-red-500'}`}>
-                                                    {conv.unreadCount}
-                                                </Badge>
-                                            )}
-                                        </button>
-                                    ))
-                                )}
+
+                                                {/* Code + Email */}
+                                                <div className="mt-1 text-xs text-gray-500 space-y-1">
+                                                    {conv.otherUserCode && (
+                                                        <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-gray-600">
+                                                            {conv.otherUserCode}
+                                                        </span>
+                                                    )}
+
+                                                    {conv.otherUserEmail && (
+                                                        <div className="wrap-break-word whitespace-normal text-gray-600">
+                                                            {conv.otherUserEmail}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Message preview (WRAP nhiều dòng) */}
+                                                <div className="mt-2 text-sm text-gray-700 whitespace-normal wrap-break-word line-clamp-2">
+                                                    {getConversationPreview(conv)}
+                                                </div>
+
+                                                {/* Footer */}
+                                                <div className="mt-2 flex items-center justify-between">
+                                                    <div className="text-xs text-gray-400">
+                                                        {conv.lastMessageIsRead ? 'Read' : 'Unread message'}
+                                                    </div>
+
+                                                    {conv.unreadCount > 0 && (
+                                                        <Badge className="bg-red-500 text-white">
+                                                            {conv.unreadCount}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                ))}
                             </div>
                         </ScrollArea>
                     </CardContent>
                 </Card>
 
                 {/* Chat area */}
-                <Card className="flex-1 flex flex-col h-150">
+                <Card className="w-full flex-1 min-w-0 flex flex-col h-180 overflow-hidden lg:h-[calc(100vh-6rem)]">
                     {selectedStudentId ? (
                         <>
                             {/* Chat header */}
@@ -512,13 +644,13 @@ export function LecturerMessages_2() {
                                     <div>
                                         <CardTitle className="text-lg">
                                             {conversations.find(
-                                                (c) => String(c.studentId) === String(selectedStudentId)
-                                            )?.studentName || 'Student'}
+                                                (c) => String(c.otherUserId) === String(selectedStudentId)
+                                            )?.otherUserName || 'Conversation'}
                                         </CardTitle>
                                         <p className="text-sm text-gray-500">
                                             {conversations.find(
-                                                (c) => String(c.studentId) === String(selectedStudentId)
-                                            )?.studentEmail || ''}
+                                                (c) => String(c.otherUserId) === String(selectedStudentId)
+                                            )?.otherUserEmail || ''}
                                         </p>
                                     </div>
                                     {socketChat.error && (
