@@ -762,7 +762,7 @@ export function CourseManagement() {
                         View Assignments
                       </Button>
                     </Link>
-                    <Link to={`/lecturer/gradebook/${course.course_id}`} className="flex-1">
+                    <Link to={`/lecturer/courses/${course.course_id}/gradebook`} className="flex-1">
                       <Button className="w-full">
                         Gradebook
                       </Button>

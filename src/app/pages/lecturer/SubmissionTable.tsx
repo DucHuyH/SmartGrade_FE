@@ -74,10 +74,12 @@ export function SubmissionTable() {
                     getAssignmentDetails(assignment_id),
                     getAssignmentSubmissions(assignment_id),
                 ]);
-
+                
                 setCourse(parseCoursePayload(coursePayload));
                 setAssignment(assignmentPayload);
+                
                 setSubmissions(submissionList);
+                console.log('Fetched submissions:', submissionList);
             } catch (error) {
                 console.error('Error loading submission page data:', error);
                 toast.error('Failed to load submissions data.');
@@ -92,15 +94,6 @@ export function SubmissionTable() {
     const handleAIGrade = () => {
         if (selectedSubmissionIds.size === 0) {
             toast.warning('Please select at least one submission before using this action.');
-            return;
-        }
-
-        const hasNotSubmittedSelection = submissions.some(
-            (submission) => selectedSubmissionIds.has(submission.submission_id) && submission.status === 'not_submitted'
-        );
-
-        if (hasNotSubmittedSelection) {
-            toast.warning('Submissions with status Not Submitted cannot be graded with AI.');
             return;
         }
 
@@ -140,9 +133,29 @@ export function SubmissionTable() {
 
             try {
                 const selectedIds = Array.from(selectedSubmissionIds);
-                console.log('Starting AI grading for submission IDs:', selectedIds);
-                await gradeSubmissionsWithAI(assignment_id, selectedIds);
-                toast.info(`Starting AI grading for ${selectedIds.length} submission(s)...`);
+
+                // Separate submission IDs and student IDs
+                const submissionIds: (string | number)[] = [];
+                const studentIds: (string | number)[] = [];
+
+                selectedIds.forEach((selectedId) => {
+                    const submission = submissions.find((s) => s.submission_id === selectedId);
+                    if (submission) {
+                        if (submission.status === 'not_submitted') {
+                            // For not submitted, use student_id
+                            studentIds.push(submission.student_id);
+                        } else {
+                            // For submitted, use submission_id
+                            submissionIds.push(selectedId);
+                        }
+                    }
+                });
+
+                console.log('Starting AI grading with:', { submissionIds, studentIds });
+                await gradeSubmissionsWithAI(assignment_id, submissionIds, studentIds);
+                toast.info(
+                    `Starting AI grading for ${submissionIds.length} submission(s) and ${studentIds.length} not submitted student(s)...`
+                );
                 setSelectedSubmissionIds(new Set());
             } catch (error) {
                 console.error('Error starting AI grading:', error);

@@ -21,6 +21,8 @@ import {
     publishSubmissionGrades,
     saveSubmissionGrade,
     generateFeedbackFromSubmission,
+    saveSubmissionAnnotations,
+    AnalysisAnnotation,
 } from '../../services/lecturer/assignmentService';
 
 type PageLocationState = {
@@ -269,18 +271,46 @@ export function AIGradingReview() {
                 return objectUrl;
             });
 
-            const response = await generateFeedbackFromSubmission({
-                file: annotatedBlob,
-                fileName: `${routeSubmissionId || 'annotated-submission'}.pdf`,
-                annotations,
-                submissionId: routeSubmissionId,
-            });
+            // Save annotations to the backend
+            console.log('[handleGenerateFeedback] Saving annotations to backend...');
+            try {
+                const annotationResponse = await saveSubmissionAnnotations(routeSubmissionId, {
+                    annotatedFile: annotatedBlob,
+                    fileName: `annotated-submission-${routeSubmissionId}.pdf`,
+                    annotations: annotations,
+                });
 
-            if (response?.overallFeedback) {
-                setOverallFeedback(response.overallFeedback);
+                console.log('[handleGenerateFeedback] Annotations saved:', annotationResponse);
+
+                if (annotationResponse?.annotated_file_url) {
+                    setAnnotatedPdfUrl((current) => {
+                        if (current) {
+                            URL.revokeObjectURL(current);
+                        }
+                        // Use the public URL from server
+                        return annotationResponse.annotated_file_url || objectUrl;
+                    });
+                }
+
+                
+            } catch (annotationError) {
+                console.error('[handleGenerateFeedback] Error saving annotations:', annotationError);
+                // Continue with feedback generation even if annotation save fails
             }
 
-            toast.success('Feedback generated successfully!');
+            // Generate feedback from annotations
+            // const response = await generateFeedbackFromSubmission({
+            //     file: annotatedBlob,
+            //     fileName: `${routeSubmissionId || 'annotated-submission'}.pdf`,
+            //     annotations,
+            //     submissionId: routeSubmissionId,
+            // });
+
+            // if (response?.overallFeedback) {
+            //     setOverallFeedback(response.overallFeedback);
+            // }
+
+            toast.success('Feedback generated and annotations saved successfully!');
         } catch (error) {
             console.error('[handleGenerateFeedback] Error:', error);
             toast.error('Failed to generate feedback');
@@ -495,12 +525,12 @@ export function AIGradingReview() {
                             {isGeneratingFeedback ? (
                                 <>
                                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                    Extracting...
+                                    Saving & Analyzing...
                                 </>
                             ) : (
                                 <>
                                     <Sparkles className="h-4 w-4 mr-2" />
-                                    Extract & Apply Annotations
+                                    Generate Feedback from Annotations
                                 </>
                             )}
                         </Button>

@@ -30,6 +30,14 @@ export const normalizeSubmissionIdentifier = (submissionId: string | number | nu
     return lastNumberMatch?.[1] ?? rawValue;
 };
 
+const normalizeStatus = (status: unknown): 'not_submitted' | 'pending' | 'graded' => {
+    const normalized = String(status).toLowerCase().trim();
+    if (normalized === 'not_submitted' || normalized === 'pending' || normalized === 'graded') {
+        return normalized;
+    }
+    return 'pending'; // default fallback
+};
+
 const parseLecturerSubmissionsPayload = (payload: unknown): LecturerSubmission[] => {
     const root = (payload as Record<string, unknown>) ?? {};
     const nested = (root.data as Record<string, unknown> | undefined) ?? {};
@@ -126,11 +134,13 @@ const parseLecturerSubmissionsPayload = (payload: unknown): LecturerSubmission[]
         const fileRaw = submissionRecord.file_url ?? submissionRecord.submission_file_url ?? null;
         const fileUrl = typeof fileRaw === 'string' && fileRaw.trim() ? fileRaw : null;
 
-        const status = fileUrl === null
-            ? 'not_submitted'
-            : finalScore !== null
-                ? 'graded'
-                : 'pending';
+        // const status = fileUrl === null
+        //     ? 'not_submitted'
+        //     : finalScore !== null
+        //         ? 'graded'
+        //         : 'pending';
+
+        const status = normalizeStatus(submissionRecord.status);
 
         const hasPublished = toBoolean(
             submissionRecord.has_published ?? submissionRecord.is_published ?? false
@@ -190,6 +200,7 @@ export const getAssignmentSubmissions = async (assignmentId: string): Promise<Le
     try {
         const response = await axiosInstance.get(`/submissions/${assignmentId}`);
         const payload = (response.data?.data as unknown) ?? response.data;
+        console.log(`Raw response for submissions of assignment ${assignmentId}:`, payload);
 
         return parseLecturerSubmissionsPayload(payload);
     } catch (error) {
@@ -594,11 +605,6 @@ export const generateFeedbackFromSubmission = async (
     request: FeedbackAnalysisRequest
 ): Promise<FeedbackAnalysisResponse> => {
     try {
-        console.log('[generateFeedbackFromSubmission] Uploading annotated file:', {
-            fileName: request.fileName,
-            submissionId: request.submissionId,
-            hasAnnotations: Boolean(request.annotations?.length),
-        });
 
         const formData = new FormData();
         const uploadFileName = request.fileName ?? (request.file instanceof File ? request.file.name : 'annotated-submission.pdf');
@@ -645,25 +651,108 @@ export const generateFeedbackFromSubmission = async (
     }
 };
 
+// Save annotations for a submission
+export interface SaveAnnotationsRequest {
+    annotatedFile?: Blob;
+    fileName?: string;
+    annotations?: AnalysisAnnotation[];
+}
+
+export interface AnnotationResponse {
+    success: boolean;
+    submission_id: string;
+    annotated_file_url?: string;
+    annotated_file_public_id?: string;
+    message?: string;
+}
+
+export const saveSubmissionAnnotations = async (
+    submissionId: string | number,
+    request: SaveAnnotationsRequest
+): Promise<AnnotationResponse> => {
+    try {
+        console.log('[saveSubmissionAnnotations] Saving annotations for submission:', submissionId, {
+            hasAnnotations: Boolean(request.annotations?.length),
+            hasFile: Boolean(request.annotatedFile),
+        });
+
+        const formData = new FormData();
+
+        if (request.annotatedFile) {
+            const fileName = request.fileName ?? `annotated-submission-${submissionId}.pdf`;
+            formData.append('annotated_file', request.annotatedFile, fileName);
+        }
+
+        // if (request.annotations && request.annotations.length > 0) {
+        //     formData.append('annotations', JSON.stringify(request.annotations));
+        // }
+
+
+
+        const response = await axiosInstance.patch(
+            `/submissions/${submissionId}/annotate`,
+            formData,
+            {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+                withCredentials: true,
+            }
+        );
+
+        const data = response.data?.data;  
+
+        return {
+            success: data?.success !== false,
+            submission_id: String(data?.submission_id ?? submissionId),
+            annotated_file_url: data?.data?.annotated_file_url,
+            annotated_file_public_id: data?.data?.annotated_file_public_id,
+            message: data?.message,
+        } as AnnotationResponse;
+    } catch (error) {
+        console.error('[saveSubmissionAnnotations] Error:', error);
+        throw error;
+    }
+};
+
 export interface AIGradingRequest {
-    list_submission: (string | number)[];
+    list_submission?: (string | number)[];
+    list_not_submitted?: (string | number)[];
 }
 
 export interface AIGradingResponse {
     success: boolean;
     message: string;
+    errors?: Array<{
+        student_id: string | number;
+        message: string;
+    }>;
 }
 
 export const gradeSubmissionsWithAI = async (
     assignmentId: string | number,
-    submissionIds: (string | number)[]
+    submissionIds: (string | number)[] = [],
+    studentIds: (string | number)[] = []
 ): Promise<AIGradingResponse> => {
     try {
-        console.log('[gradeSubmissionsWithAI] Starting AI grading for assignment:', assignmentId, 'submissions:', submissionIds);
+        console.log('[gradeSubmissionsWithAI] Starting AI grading for assignment:', assignmentId, {
+            submissionIds,
+            studentIds,
+        });
 
-        const payload: AIGradingRequest = {
-            list_submission: submissionIds,
-        };
+        const payload: AIGradingRequest = {};
+
+        if (submissionIds.length > 0) {
+            payload.list_submission = submissionIds;
+        }
+
+        if (studentIds.length > 0) {
+            payload.list_not_submitted = studentIds;
+        }
+
+        if (submissionIds.length === 0 && studentIds.length === 0) {
+            throw new Error('No submissions or students to grade');
+        }
 
         const response = await axiosInstance.post(
             `/grading/ai/${assignmentId}`,
@@ -678,6 +767,7 @@ export const gradeSubmissionsWithAI = async (
             return {
                 success: true,
                 message: data.message || 'Grading process started',
+                errors: data.errors || [],
             };
         }
 

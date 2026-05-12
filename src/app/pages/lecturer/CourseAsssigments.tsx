@@ -283,7 +283,7 @@ export function CourseAssignments() {
                 </Link>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Card
                     className="hover:shadow-md transition-shadow cursor-pointer"
                     onClick={() => navigate(`/lecturer/courses/${course_id}/students`)}
@@ -296,7 +296,7 @@ export function CourseAssignments() {
                         <p className="text-xs text-gray-600">View enrolled students and their gradebook</p>
                     </CardContent>
                 </Card>
-                <Card
+                {/* <Card
                     className="hover:shadow-md transition-shadow cursor-pointer"
                     onClick={() => navigate(`/lecturer/courses/${course_id}/materials`)}
                 >
@@ -307,7 +307,7 @@ export function CourseAssignments() {
                     <CardContent>
                         <p className="text-xs text-gray-600">Manage lecture notes and resources</p>
                     </CardContent>
-                </Card>
+                </Card> */}
                 <Card
                     className="hover:shadow-md transition-shadow cursor-pointer"
                     onClick={() => navigate(`/lecturer/courses/${course_id}/gradebook`)}
@@ -460,10 +460,10 @@ export function CourseAssignments() {
                                                 View Submissions
                                             </Button>
                                         </Link>
-                                        <Link to={`/lecturer/assignments/${assignment.assignment_id}/questions`}>
+                                        <Link to={`/lecturer/courses/${course_id}/assignments/${assignment.assignment_id}/analytics`}>
                                             <Button className='w-full'>
                                                 <MessageSquare className="h-4 w-4 mr-2" />
-                                                Questions
+                                                Analytics & Feedback
                                             </Button>
                                         </Link>
                                     </div>
