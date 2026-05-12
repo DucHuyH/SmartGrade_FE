@@ -6,6 +6,15 @@ export const StudentProfile: React.FC = () => {
     const [profile, setProfile] = useState<any>(null)
     const [loading, setLoading] = useState(true)
 
+    const fetchProfile = async () => {
+        try {
+            const res = await getProfile()
+            setProfile(res)
+        } catch (e) {
+            console.error(e)
+        }
+    }
+
     useEffect(() => {
         ; (async () => {
             try {
@@ -27,7 +36,13 @@ export const StudentProfile: React.FC = () => {
 
     const handleUpload = async (file: File) => {
         const res = await uploadAvatar(file)
-        setProfile((p: any) => ({ ...p, avatarUrl: res.avatarUrl || res.url }))
+        setProfile((p: any) => ({
+            ...(p ?? {}),
+            avatarUrl: res?.avatarUrl ?? p?.avatarUrl,
+            avatarPublicId: res?.avatarPublicId ?? p?.avatarPublicId
+        }))
+        // Refetch profile to sync updated avatar from server
+        await fetchProfile()
         return res
     }
 

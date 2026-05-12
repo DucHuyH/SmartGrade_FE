@@ -7,6 +7,7 @@ import { Label } from '../../components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
 import { GraduationCap, ArrowLeft, Loader2 } from 'lucide-react'
 import { toast } from 'react-toastify'
+import { ForgotPasswordDialog } from '../../components/ForgotPasswordDialog'
 
 export function LecturerLogin() {
   const { login } = useAuth()
@@ -115,6 +116,10 @@ export function LecturerLogin() {
                 {loading ? <Loader2 className='h-4 w-4 animate-spin text-white' /> : null}
                 {loading ? 'Signing in...' : 'Sign In'}
               </Button>
+
+              <div className='flex justify-center'>
+                <ForgotPasswordDialog role='lecturer' />
+              </div>
 
             </form>
           </CardContent>
