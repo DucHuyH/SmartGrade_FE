@@ -23,7 +23,7 @@ interface Props {
     initial?: Profile | null
     onSave: (payload: any) => Promise<any>
     onUploadAvatar?: (file: File) => Promise<any>
-    onChangePassword: (oldPassword: string, newPassword: string) => Promise<any>
+    onChangePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<any>
 }
 
 const EMPTY_PROFILE: Profile = {
@@ -271,13 +271,13 @@ export const ProfileSettings: React.FC<Props> = ({ initial, onSave, onUploadAvat
     )
 }
 
-const ChangePasswordForm: React.FC<{ onChange: (oldP: string, newP: string) => Promise<any> }> = ({ onChange }) => {
-    const [oldP, setOldP] = useState('')
+const ChangePasswordForm: React.FC<{ onChange: (currentP: string, newP: string, confirmP: string) => Promise<any> }> = ({ onChange }) => {
+    const [currentP, setCurrentP] = useState('')
     const [newP, setNewP] = useState('')
     const [confirmP, setConfirmP] = useState('')
     const [loading, setLoading] = useState(false)
 
-    const valid = newP.length >= 8 && newP === confirmP
+    const valid = newP.length >= 8 && newP === confirmP && currentP.length > 0
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -287,8 +287,8 @@ const ChangePasswordForm: React.FC<{ onChange: (oldP: string, newP: string) => P
         }
         setLoading(true)
         try {
-            await onChange(oldP, newP)
-            setOldP('')
+            await onChange(currentP, newP, confirmP)
+            setCurrentP('')
             setNewP('')
             setConfirmP('')
             toast.success('Password updated successfully')
@@ -305,7 +305,7 @@ const ChangePasswordForm: React.FC<{ onChange: (oldP: string, newP: string) => P
         <form onSubmit={submit} className='space-y-3'>
             <div>
                 <Label className='mb-1'>Current Password</Label>
-                <Input type='password' placeholder='Enter current password' value={oldP} onChange={(e) => setOldP(e.target.value)} />
+                <Input type='password' placeholder='Enter current password' value={currentP} onChange={(e) => setCurrentP(e.target.value)} />
             </div>
             <div>
                 <Label className='mb-1'>New Password</Label>

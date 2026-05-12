@@ -94,10 +94,14 @@ export function createProfileService(axiosInstance: any, _basePath?: string) {
         }
     }
 
-    const changePassword = async (oldPassword: string, newPassword: string) => {
+    const changePassword = async (currentPassword: string, newPassword: string, confirmPassword: string) => {
         try {
-            const res = await axiosInstance.post('/users/profile/change-password', { oldPassword, newPassword }, { withCredentials: true })
-            return res.data
+            const res = await axiosInstance.patch('/users/change-password', {
+                currentPassword,
+                newPassword,
+                confirmPassword
+            }, { withCredentials: true })
+            return res.data?.data ?? res.data
         } catch (error: any) {
             throw error
         }

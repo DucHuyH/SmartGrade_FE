@@ -17,6 +17,12 @@ export interface PasswordResetCompletePayload {
     verificationToken?: string
 }
 
+export interface ChangePasswordPayload {
+    currentPassword: string
+    newPassword: string
+    confirmPassword: string
+}
+
 export interface PasswordResetResponse {
     success?: boolean
     message?: string
@@ -60,9 +66,20 @@ export const createPasswordResetService = (axiosInstance: AxiosInstance, authCon
         return parsePasswordResetPayload(response.data)
     }
 
+    const changePassword = async (payload: ChangePasswordPayload) => {
+        const response = await axiosInstance.patch('/users/change-password', {
+            currentPassword: payload.currentPassword,
+            newPassword: payload.newPassword,
+            confirmPassword: payload.confirmPassword
+        })
+
+        return parsePasswordResetPayload(response.data)
+    }
+
     return {
         requestPasswordResetOtp,
         verifyPasswordResetOtp,
-        resetPassword
+        resetPassword,
+        changePassword
     }
 }

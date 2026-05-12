@@ -47,10 +47,14 @@ export const LecturerProfile: React.FC = () => {
         return res
     }
 
+    const handleChangePassword: (currentPassword: string, newPassword: string, confirmPassword: string) => Promise<any> = async (currentPassword, newPassword, confirmPassword) => {
+        return changePassword(currentPassword, newPassword, confirmPassword)
+    }
+
     return (
         <div>
             <h2 className='text-2xl font-semibold mb-4'>Profile</h2>
-            {loading ? <div>Loading...</div> : <ProfileSettings initial={profile} onSave={handleSave} onUploadAvatar={handleUpload} onChangePassword={changePassword} />}
+            {loading ? <div>Loading...</div> : <ProfileSettings initial={profile} onSave={handleSave} onUploadAvatar={handleUpload} onChangePassword={handleChangePassword} />}
         </div>
     )
 }
