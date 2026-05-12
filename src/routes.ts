@@ -13,7 +13,7 @@ import { EditAssignment } from './app/pages/lecturer/EditAssignment'
 import { CourseStudentList } from './app/pages/lecturer/CourseStudentList'
 import { SubmissionTable } from './app/pages/lecturer/SubmissionTable'
 import { AIGradingReview } from './app/pages/lecturer/AIGradingReview'
-
+import { FullGradebook } from './app/pages/lecturer/FullGradebook'
 
 import { StudentDashboard } from './app/pages/student/StudentDashboard'
 import { StudentProfile } from './app/pages/student/Profile'
@@ -70,6 +70,10 @@ export const router = createBrowserRouter([
       {
         path: 'courses/:course_id/students',
         Component: CourseStudentList
+      },
+      {
+        path: 'courses/:course_id/gradebook',
+        Component: FullGradebook
       },
       {
         path: 'courses/:course_id/assignments/:assignment_id/submissions',

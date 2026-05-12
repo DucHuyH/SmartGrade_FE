@@ -310,7 +310,7 @@ export function CourseAssignments() {
                 </Card>
                 <Card
                     className="hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => navigate(`/lecturer/gradebook/${course_id}`)}
+                    onClick={() => navigate(`/lecturer/courses/${course_id}/gradebook`)}
                 >
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm">Full Gradebook</CardTitle>
