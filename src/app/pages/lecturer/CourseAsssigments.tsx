@@ -460,7 +460,11 @@ export function CourseAssignments() {
                                                 View Submissions
                                             </Button>
                                         </Link>
-                                        <Link to={`/lecturer/courses/${course_id}/assignments/${assignment.assignment_id}/analytics`}>
+                                        <Link to={`/lecturer/courses/${course_id}/assignments/${assignment.assignment_id}/analytics`}
+                                            state={{
+                                                courseTitle: course?.name ?? '',
+                                                assignmentTitle: assignment.title,
+                                            }}>
                                             <Button className='w-full'>
                                                 <MessageSquare className="h-4 w-4 mr-2" />
                                                 Analytics & Feedback

@@ -14,6 +14,7 @@ import { CourseStudentList } from './app/pages/lecturer/CourseStudentList'
 import { SubmissionTable } from './app/pages/lecturer/SubmissionTable'
 import { AIGradingReview } from './app/pages/lecturer/AIGradingReview'
 import { FullGradebook } from './app/pages/lecturer/FullGradebook'
+import { AssignmentAnalytics } from './app/pages/lecturer/AssignmentAnalytics'
 
 import { StudentDashboard } from './app/pages/student/StudentDashboard'
 import { StudentProfile } from './app/pages/student/Profile'
@@ -82,6 +83,10 @@ export const router = createBrowserRouter([
       {
         path: 'courses/:course_id/assignments/:assignment_id/submissions/:submission_id/ai-grading',
         Component: AIGradingReview
+      },
+      {
+        path: 'courses/:course_id/assignments/:assignment_id/analytics',
+        Component: AssignmentAnalytics
       },
       {
         path: 'messages',

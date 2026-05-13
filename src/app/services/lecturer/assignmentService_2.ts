@@ -676,3 +676,50 @@ export const gradeSubmissionsWithAI = async (
         throw error;
     }
 };
+
+export interface AssignmentStatisticItem {
+    item_name: string;
+    average_score: number;
+    max_score: number;
+    correct_rate: number;
+}
+
+export interface AssignmentStatistics {
+    success: boolean;
+    message: string;
+    data: AssignmentStatisticItem[];
+}
+
+export const getAssignmentStatistics = async (assignmentId: string): Promise<AssignmentStatisticItem[]> => {
+    try {
+        const response = await axiosInstance.get(`/assignments/statistics/${assignmentId}`);
+        console.log(`Raw response for assignment ${assignmentId} statistics:`, response.data);
+
+        const payload = response.data?.data as Record<string, unknown> | undefined;
+        if (!payload) {
+            throw new Error("Invalid response format: missing 'data' field");
+        }
+
+        // Handle both direct array and nested data structure
+        const dataArray = Array.isArray(payload)
+            ? payload
+            : (payload.data as unknown[] | undefined);
+
+        if (!Array.isArray(dataArray)) {
+            throw new Error("Statistics data is not an array");
+        }
+
+        return dataArray.map((item) => {
+            const record = (item as Record<string, unknown>) ?? {};
+            return {
+                item_name: String(record.item_name ?? `Question ${record.item_id ?? ''}`),
+                average_score: toNullableNumber(record.average_score) ?? 0,
+                max_score: toNullableNumber(record.max_score) ?? 100,
+                correct_rate: toNullableNumber(record.correct_rate) ?? 0,
+            };
+        });
+    } catch (error) {
+        console.error(`Error fetching statistics for assignment ${assignmentId}:`, error);
+        throw error;
+    }
+};
