@@ -18,6 +18,7 @@ export const SOCKET_EVENTS = {
     RECEIVE_CHAT_MESSAGE: 'chat:message',
     MARK_CHAT_SEEN: 'chat:seen',
     CHAT_SEEN_UPDATED: 'chat:seen:updated',
+    CONVERSATION_UPDATED: 'chat:conversation:updated',
 };
 
 export interface GradingStatusPayload {
@@ -75,6 +76,19 @@ export interface ChatSeenPayload {
     reader_id: number | string;
     other_user_id: number | string;
     updated_count: number;
+}
+
+export interface ConversationUpdatedPayload {
+    other_user_id: number | string;
+    last_message?: string;
+    last_message_time?: string;
+    last_message_is_read?: boolean;
+    unread_count?: number;
+    // Optional: User info for lazy-loaded conversations
+    other_user_name?: string;
+    other_user_email?: string;
+    other_user_code?: string;
+    other_user_role?: string;
 }
 
 // Get the backend URL from API_BASE_URL
@@ -266,6 +280,20 @@ export const onChatSeenUpdated = (callback: (payload: ChatSeenPayload) => void):
     };
 };
 
+export const onConversationUpdated = (callback: (payload: ConversationUpdatedPayload) => void): (() => void) => {
+    if (!socket) {
+        return () => { };
+    }
+
+    socket.on(SOCKET_EVENTS.CONVERSATION_UPDATED, callback);
+
+    return () => {
+        if (socket) {
+            socket.off(SOCKET_EVENTS.CONVERSATION_UPDATED, callback);
+        }
+    };
+};
+
 export default {
     initSocket,
     getSocket,
@@ -282,5 +310,6 @@ export default {
     onChatMessage,
     onChatJoined,
     onChatSeenUpdated,
+    onConversationUpdated,
     SOCKET_EVENTS,
 };

@@ -40,3 +40,24 @@
 .read-the-docs {
   color: #888;
 } */
+
+/* ✅ Real-time conversation update highlight animation */
+@keyframes conversation-highlight {
+  0% {
+    background-color: #fef3c7;
+    box-shadow: 0 0 8px rgba(255, 193, 7, 0.3);
+  }
+  50% {
+    background-color: #fef08a;
+    box-shadow: 0 0 12px rgba(255, 193, 7, 0.4);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: none;
+  }
+}
+
+/* Smooth fade in from yellow to transparent over 2 seconds */
+.animate-conversation-highlight {
+  animation: conversation-highlight 2s ease-out forwards;
+}

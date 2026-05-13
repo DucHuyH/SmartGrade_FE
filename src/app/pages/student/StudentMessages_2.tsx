@@ -22,7 +22,16 @@ import {
     AlertCircle,
     Loader2,
     CheckCheck,
+    Plus,
 } from 'lucide-react';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from '../../components/ui/dialog';
 import { toast } from 'react-toastify';
 import { STUDENT_STORAGE_KEYS } from '../../../constants';
 import axiosInstance from '../../services/student/axios';
@@ -41,6 +50,20 @@ interface Course {
     course_id: string | number;
     course_code: string;
     name: string;
+    lecturer_id?: string | number;
+    lecturer_name?: string;
+    lecturer_email?: string;
+    lecturer?: {
+        name: string;
+        email: string;
+    };
+}
+
+interface Lecturer {
+    lecturer_id: string | number;
+    name: string;
+    email: string;
+    lecturer_code?: string;
 }
 
 interface Assignment {
@@ -181,6 +204,9 @@ export function StudentMessages_2() {
     const [conversationsLoading, setConversationsLoading] = useState(false);
     const [lecturers, setLecturers] = useState<LecturerInfo[]>([]); // kept for legacy usage if needed
 
+    // ✅ Course lecturers for messaging without history
+    const [courseLecturers, setCourseLecturers] = useState<Lecturer[]>([]);
+
     // Message state
     const [messageInput, setMessageInput] = useState('');
     const [historyMessages, setHistoryMessages] = useState<DirectChatMessage[]>([]);
@@ -240,6 +266,32 @@ export function StudentMessages_2() {
 
         loadCourses();
     }, [searchParams]);
+
+    // ✅ Extract lecturers from courses for current course
+    useEffect(() => {
+        if (!selectedCourseId) return;
+
+        const currentCourse = courses.find(c => String(c.course_id) === selectedCourseId);
+        console.log('Selected course:', currentCourse);
+        if (!currentCourse) {
+            setCourseLecturers([]);
+            return;
+        }
+
+        // Extract lecturer info from course
+        const lecturer: Lecturer = {
+            lecturer_id: currentCourse.lecturer_id || '',
+            name: currentCourse.lecturer?.name || 'Unknown Lecturer',
+            email: currentCourse.lecturer?.email || '',
+            lecturer_code: '',
+        };
+
+        if (lecturer.lecturer_id) {
+            setCourseLecturers([lecturer]);
+        } else {
+            setCourseLecturers([]);
+        }
+    }, [selectedCourseId, courses]);
 
     // Load conversations for selected course (student side)
     useEffect(() => {
@@ -381,19 +433,46 @@ export function StudentMessages_2() {
             const now = new Date().toISOString();
 
             setConversations((prev) => {
-                const updated = prev.map((c) => {
-                    if (String(c.otherUserId) === String(selectedLecturerId)) {
-                        return {
-                            ...c,
+                // Check if conversation exists
+                const existingConvIdx = prev.findIndex((c) => String(c.otherUserId) === String(selectedLecturerId));
+                let updated: ChatConversationSummary[];
+
+                if (existingConvIdx >= 0) {
+                    // Conversation exists - update it
+                    updated = prev.map((c) => {
+                        if (String(c.otherUserId) === String(selectedLecturerId)) {
+                            return {
+                                ...c,
+                                lastMessage: messageInput,
+                                lastMessageTime: now,
+                                lastMessageIsRead: true,
+                            };
+                        }
+                        return c;
+                    });
+                } else {
+                    // Conversation doesn't exist - create new one from courseLecturers
+                    const lecturer = courseLecturers.find((l) => String(l.lecturer_id) === String(selectedLecturerId));
+                    if (lecturer) {
+                        const newConversation: ChatConversationSummary = {
+                            courseId: selectedCourseId ? Number(selectedCourseId) : null,
+                            otherUserId: Number(lecturer.lecturer_id),
+                            otherUserName: lecturer.name,
+                            otherUserEmail: lecturer.email,
+                            otherUserCode: lecturer.lecturer_code || '',
+                            otherUserRole: null,
                             lastMessage: messageInput,
                             lastMessageTime: now,
                             lastMessageIsRead: true,
+                            unreadCount: 0,
                         };
+                        updated = [newConversation, ...prev];
+                    } else {
+                        updated = prev;
                     }
-                    return c;
-                });
+                }
 
-                // Move selected conv to top if exists
+                // Move selected conv to top if exists and not already at top
                 const idx = updated.findIndex((c) => String(c.otherUserId) === String(selectedLecturerId));
                 if (idx > 0) {
                     const [item] = updated.splice(idx, 1);
@@ -472,7 +551,7 @@ export function StudentMessages_2() {
                 const newConv: ChatConversationSummary = {
                     courseId: null,
                     otherUserId: partnerId as unknown as number,
-                    otherUserName: (m.sender?.name ?? m.receiver?.name ?? 'Unknown') as string,
+                    otherUserName: (m.sender?.name ?? m.receiver?.name ?? '') as string,
                     otherUserEmail: (m.sender?.email ?? m.receiver?.email ?? '') as string,
                     otherUserCode: '',
                     otherUserRole: m.sender?.role ?? null,
@@ -514,6 +593,16 @@ export function StudentMessages_2() {
             courseId: selectedCourseId,
             lecturerId: String(conv.otherUserId),
         });
+    };
+
+    // ✅ Handle selecting lecturer from course (may not have conversation history)
+    const handleSelectLecturer = (lecturer: Lecturer) => {
+        setSelectedLecturerId(String(lecturer.lecturer_id));
+        setSearchParams({
+            courseId: selectedCourseId,
+            lecturerId: String(lecturer.lecturer_id),
+        });
+        toast.success(`Starting conversation with ${lecturer.name}`);
     };
 
     return (
@@ -570,15 +659,55 @@ export function StudentMessages_2() {
                         {/* Conversations list */}
                         <ScrollArea className="flex-1 pr-2">
                             <div className="space-y-2">
+                                {/* ✅ Course lecturers (always available) */}
+                                {courseLecturers.length > 0 && (
+                                    <>
+                                        <div className="sticky top-0 bg-gray-50 px-2 py-2 text-xs font-semibold text-gray-600 border-b">
+                                            COURSE LECTURER
+                                        </div>
+                                        {courseLecturers.map((lecturer) => (
+                                            <button
+                                                key={lecturer.lecturer_id}
+                                                onClick={() => handleSelectLecturer(lecturer)}
+                                                className={`w-full text-left p-3 rounded-lg transition-colors ${String(selectedLecturerId) === String(lecturer.lecturer_id)
+                                                    ? 'bg-red-50 border border-red-200'
+                                                    : 'hover:bg-gray-100'
+                                                    }`}
+                                            >
+                                                <div className="flex items-start gap-3">
+                                                    <div className="w-10 h-10 rounded-full bg-linear-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                                                        {getConversationInitials(lecturer.name)}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="font-medium text-sm text-gray-900 truncate">
+                                                            {lecturer.name}
+                                                        </p>
+                                                        <p className="text-xs text-gray-500 truncate">
+                                                            {lecturer.email}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        ))}
+                                        {filteredConversations.length > 0 && (
+                                            <div className="sticky top-0 bg-gray-50 px-2 py-2 text-xs font-semibold text-gray-600 border-b mt-2">
+                                                MESSAGE HISTORY
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
                                 {conversationsLoading ? (
                                     <div className="flex items-center justify-center py-8">
                                         <Loader2 className="w-5 h-5 animate-spin text-red-500" />
                                     </div>
                                 ) : filteredConversations.length === 0 ? (
-                                    <div className="text-center py-8 text-gray-500">
-                                        <User className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                                        <p>No conversations</p>
-                                    </div>
+                                    courseLecturers.length === 0 && (
+                                        <div className="text-center py-8 text-gray-500">
+                                            <User className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                                            <p>No conversations</p>
+                                        </div>
+                                    )
                                 ) : (
                                     filteredConversations.map((conv) => (
                                         <button
@@ -657,14 +786,26 @@ export function StudentMessages_2() {
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <CardTitle className="text-lg">
-                                            {conversations.find(
-                                                (c) => String(c.otherUserId) === String(selectedLecturerId)
-                                            )?.otherUserName || 'Lecturer'}
+                                            {(() => {
+                                                const convInfo = conversations.find(
+                                                    (c) => String(c.otherUserId) === String(selectedLecturerId)
+                                                );
+                                                const lecturerInfo = courseLecturers.find(
+                                                    (l) => String(l.lecturer_id) === String(selectedLecturerId)
+                                                );
+                                                return convInfo?.otherUserName || lecturerInfo?.name || 'Lecturer';
+                                            })()}
                                         </CardTitle>
                                         <p className="text-sm text-gray-500">
-                                            {conversations.find(
-                                                (c) => String(c.otherUserId) === String(selectedLecturerId)
-                                            )?.otherUserEmail || 'Course Discussion'}
+                                            {(() => {
+                                                const convInfo = conversations.find(
+                                                    (c) => String(c.otherUserId) === String(selectedLecturerId)
+                                                );
+                                                const lecturerInfo = courseLecturers.find(
+                                                    (l) => String(l.lecturer_id) === String(selectedLecturerId)
+                                                );
+                                                return convInfo?.otherUserEmail || lecturerInfo?.email || 'Course Discussion';
+                                            })()}
                                         </p>
                                     </div>
                                     {socketChat.error && (

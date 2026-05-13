@@ -22,11 +22,20 @@ import {
     AlertCircle,
     Loader2,
     CheckCheck,
+    Plus,
 } from 'lucide-react';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from '../../components/ui/dialog';
 import { toast } from 'react-toastify';
 import { LECTURER_STORAGE_KEYS } from '../../../constants';
 import axiosInstance from '../../services/lecturer/axios';
-import { getAllCourses } from '../../services/lecturer/courseService';
+import { getAllCourses, getCourseStudents } from '../../services/lecturer/courseService';
 import {
     fetchChatConversations,
     fetchDirectChatThread,
@@ -35,11 +44,19 @@ import {
     type DirectChatMessage,
 } from '../../services/shared/directChat';
 import { useChatSocket, type UseChatSocketReturn } from '../../hooks/useChatSocket';
+import { onConversationUpdated, type ConversationUpdatedPayload } from '../../services/socketService';
 
 interface Course {
     course_id: string | number;
     course_code: string;
     name: string;
+}
+
+interface Student {
+    user_id: string | number;
+    name: string;
+    email: string;
+    user_code?: string;
 }
 
 // ✅ Helper function to format date for date separators
@@ -161,6 +178,12 @@ export function LecturerMessages_2() {
     const [conversations, setConversations] = useState<ChatConversationSummary[]>([]);
     const [conversationsLoading, setConversationsLoading] = useState(false);
 
+    // New message feature
+    const [courseStudents, setCourseStudents] = useState<Student[]>([]);
+    const [studentsLoading, setStudentsLoading] = useState(false);
+    const [isNewMessageDialogOpen, setIsNewMessageDialogOpen] = useState(false);
+    const [selectedNewMessageStudentId, setSelectedNewMessageStudentId] = useState<string>('');
+
     // Message state
     const [messageInput, setMessageInput] = useState('');
     const [historyMessages, setHistoryMessages] = useState<DirectChatMessage[]>([]);
@@ -168,6 +191,13 @@ export function LecturerMessages_2() {
 
     // Current user info
     const [currentUserId, setCurrentUserId] = useState<string | number | null>(null);
+
+    // Track conversations with highlight animation for real-time updates
+    const [highlightedConversationId, setHighlightedConversationId] = useState<string | number | null>(null);
+
+    // Track new message indicators (conversations that just received a message)
+    const [newMessageConversationIds, setNewMessageConversationIds] = useState<Set<string | number>>(new Set());
+    const newMessageTimeoutsRef = useRef<Map<string | number, ReturnType<typeof setTimeout>>>(new Map());
 
     // Socket hook
     const socketChat: UseChatSocketReturn = useChatSocket({
@@ -264,6 +294,39 @@ export function LecturerMessages_2() {
 
         loadConversationsForCourse();
     }, [selectedCourseId, currentUserId, searchParams]);
+
+    // ✅ Load course students for new message feature
+    useEffect(() => {
+        const loadCourseStudents = async () => {
+            if (!selectedCourseId) return;
+
+            try {
+                setStudentsLoading(true);
+                const students = await getCourseStudents(String(selectedCourseId));
+
+                console.log('Loaded course students:', students.data?.course);
+
+                // Normalize student data
+                const normalizedStudents: Student[] = Array.isArray(students?.data?.course)
+                    ? students.data.course.map((s: any) => ({
+                        user_id: s.user_id || s.id,
+                        name: s.name || s.full_name || 'Unknown',
+                        email: s.email || '',
+                        user_code: s.user_code || s.code || '',
+                    }))
+                    : [];
+
+                setCourseStudents(normalizedStudents);
+            } catch (error) {
+                console.error('Error loading course students:', error);
+                setCourseStudents([]);
+            } finally {
+                setStudentsLoading(false);
+            }
+        };
+
+        loadCourseStudents();
+    }, [selectedCourseId]);
 
 
     // Load chat history
@@ -373,19 +436,46 @@ export function LecturerMessages_2() {
             const now = new Date().toISOString();
 
             setConversations((prev) => {
-                const updated = prev.map((c) => {
-                    if (String(c.otherUserId) === String(selectedStudentId)) {
-                        return {
-                            ...c,
+                // Check if conversation exists
+                const existingConvIdx = prev.findIndex((c) => String(c.otherUserId) === String(selectedStudentId));
+                let updated: ChatConversationSummary[];
+
+                if (existingConvIdx >= 0) {
+                    // Conversation exists - update it
+                    updated = prev.map((c) => {
+                        if (String(c.otherUserId) === String(selectedStudentId)) {
+                            return {
+                                ...c,
+                                lastMessage: messageInput,
+                                lastMessageTime: now,
+                                lastMessageIsRead: true,
+                            };
+                        }
+                        return c;
+                    });
+                } else {
+                    // Conversation doesn't exist - create new one from courseStudents
+                    const student = courseStudents.find((s) => String(s.user_id) === String(selectedStudentId));
+                    if (student) {
+                        const newConversation: ChatConversationSummary = {
+                            courseId: selectedCourseId ? Number(selectedCourseId) : null,
+                            otherUserId: Number(student.user_id),
+                            otherUserName: student.name,
+                            otherUserEmail: student.email,
+                            otherUserCode: student.user_code || '',
+                            otherUserRole: null,
                             lastMessage: messageInput,
                             lastMessageTime: now,
                             lastMessageIsRead: true,
+                            unreadCount: 0,
                         };
+                        updated = [newConversation, ...prev];
+                    } else {
+                        updated = prev;
                     }
-                    return c;
-                });
+                }
 
-                // Move selected conv to top if exists
+                // Move selected conv to top if exists and not already at top
                 const idx = updated.findIndex((c) => String(c.otherUserId) === String(selectedStudentId));
                 if (idx > 0) {
                     const [item] = updated.splice(idx, 1);
@@ -458,7 +548,7 @@ export function LecturerMessages_2() {
                 const newConv: ChatConversationSummary = {
                     courseId: null,
                     otherUserId: partnerId as unknown as number,
-                    otherUserName: (m.sender?.name ?? m.receiver?.name ?? 'Unknown') as string,
+                    otherUserName: (m.sender?.name ?? m.receiver?.name ?? '') as string,
                     otherUserEmail: (m.sender?.email ?? m.receiver?.email ?? '') as string,
                     otherUserCode: '',
                     otherUserRole: m.sender?.role ?? null,
@@ -467,6 +557,7 @@ export function LecturerMessages_2() {
                     unreadCount: isActiveNew ? 0 : (isFromMe ? 0 : 1),
                     lastMessageIsRead: isActiveNew ? true : isFromMe,
                 };
+                console.log('Adding new conversation from socket message:', newConv);
 
                 if (isActiveNew) {
                     try {
@@ -482,6 +573,153 @@ export function LecturerMessages_2() {
 
         prevSocketCountRef.current = msgs.length;
     }, [socketChat.messages, currentUserId, selectedStudentId]);
+
+    // ✅ Listen to chat:conversation:updated event for real-time conversation updates
+    useEffect(() => {
+        let unsubscribe: (() => void) | null = null;
+
+        try {
+            unsubscribe = onConversationUpdated((data: ConversationUpdatedPayload) => {
+                console.log('📢 Received chat:conversation:updated event:', data);
+
+                // ✅ Add conversation to new message indicator set
+                const convId = data.other_user_id;
+                setNewMessageConversationIds((prev) => new Set(prev).add(convId));
+
+                // ✅ Clear previous timeout if exists
+                const prevTimeout = newMessageTimeoutsRef.current.get(convId);
+                if (prevTimeout) {
+                    clearTimeout(prevTimeout);
+                }
+
+                // ✅ Remove from new message indicators after 5 seconds
+                const timeout = setTimeout(() => {
+                    setNewMessageConversationIds((prev) => {
+                        const updated = new Set(prev);
+                        updated.delete(convId);
+                        return updated;
+                    });
+                    newMessageTimeoutsRef.current.delete(convId);
+                }, 5000);
+
+                newMessageTimeoutsRef.current.set(convId, timeout);
+
+                setConversations((prev) => {
+                    try {
+                        // Step 1: Filter out old conversation if it exists (for moving to top)
+                        const filtered = prev.filter(c => String(c.otherUserId) !== String(data.other_user_id));
+
+                        // Step 2: Find existing conversation to preserve user info
+                        const existingConv = prev.find(c => String(c.otherUserId) === String(data.other_user_id));
+
+                        // Step 3: Safely extract message content (handle both string and object formats)
+                        const extractMessageContent = (msg: any): string => {
+                            if (typeof msg === 'string') {
+                                return msg;
+                            }
+                            if (msg && typeof msg === 'object') {
+                                return String((msg as any)?.message ?? (msg as any)?.content ?? '');
+                            }
+                            return '';
+                        };
+
+                        const lastMessageText = extractMessageContent(data.last_message as any);
+
+                        // Step 4: Create updated conversation object with new data
+                        const isActiveConversation = String(selectedStudentId) === String(data.other_user_id);
+
+                        const updatedConv: ChatConversationSummary = existingConv
+                            ? {
+                                // Preserve existing conversation data
+                                ...existingConv,
+                                // Update with new message info (ensure lastMessage is always string)
+                                lastMessage: lastMessageText || existingConv.lastMessage,
+                                lastMessageTime: data.last_message_time ?? existingConv.lastMessageTime,
+                                lastMessageIsRead: data.last_message_is_read ?? existingConv.lastMessageIsRead,
+                                // Update unread count: if this is the active conversation, mark as read
+                                unreadCount: isActiveConversation ? 0 : (typeof data.unread_count === 'number' ? data.unread_count : existingConv.unreadCount),
+                            }
+                            : {
+                                // New conversation (lazy load) - create placeholder
+                                courseId: null,
+                                otherUserId: Number(data.other_user_id),
+                                otherUserName: data.other_user_name || `User ${data.other_user_id}`,
+                                otherUserEmail: data.other_user_email || '',
+                                otherUserCode: data.other_user_code || '',
+                                otherUserRole: data.other_user_role || null,
+                                lastMessage: lastMessageText || 'New message',
+                                lastMessageTime: data.last_message_time || new Date().toISOString(),
+                                unreadCount: isActiveConversation ? 0 : (typeof data.unread_count === 'number' ? data.unread_count : 1),
+                                lastMessageIsRead: isActiveConversation ? true : (data.last_message_is_read ?? false),
+                            };
+
+                        // Step 5: Place updated conversation at the top
+                        const newConversations = [updatedConv, ...filtered];
+
+                        // Step 6: Visual feedback - trigger highlight animation
+                        setHighlightedConversationId(data.other_user_id);
+                        setTimeout(() => setHighlightedConversationId(null), 2000); // Clear after 2s
+
+                        // Step 7: Toast notification if not viewing this conversation
+                        if (!isActiveConversation) {
+                            const senderName = updatedConv.otherUserName || `User ${data.other_user_id}`;
+                            const messagePreview = (lastMessageText || 'New message').substring(0, 50);
+
+                            toast.info(
+                                `New message from ${senderName}: ${messagePreview}${(lastMessageText?.length ?? 0) > 50 ? '...' : ''}`,
+                                {
+                                    position: 'top-right',
+                                    autoClose: 4000,
+                                    hideProgressBar: false,
+                                    closeOnClick: true,
+                                    pauseOnHover: true,
+                                    draggable: true,
+                                }
+                            );
+                        }
+
+                        return newConversations;
+                    } catch (err) {
+                        console.error('❌ Error handling conversation update:', err);
+                        // Fallback: just update existing conversation without moving to top
+                        return prev.map(c => {
+                            if (String(c.otherUserId) === String(data.other_user_id)) {
+                                const lastMsgData = data.last_message as any;
+                                const msgContent = typeof data.last_message === 'string'
+                                    ? data.last_message
+                                    : (lastMsgData && typeof lastMsgData === 'object'
+                                        ? String(lastMsgData.message ?? lastMsgData.content ?? '')
+                                        : '');
+
+                                return {
+                                    ...c,
+                                    lastMessage: msgContent || c.lastMessage,
+                                    lastMessageTime: data.last_message_time ?? c.lastMessageTime,
+                                    lastMessageIsRead: data.last_message_is_read ?? c.lastMessageIsRead,
+                                    unreadCount: String(selectedStudentId) === String(data.other_user_id)
+                                        ? 0
+                                        : (typeof data.unread_count === 'number' ? data.unread_count : c.unreadCount),
+                                };
+                            }
+                            return c;
+                        });
+                    }
+                });
+            });
+        } catch (err) {
+            console.error('❌ Error subscribing to conversation updates:', err);
+        }
+
+        // Cleanup: Unsubscribe from event listener and clear timeouts
+        return () => {
+            if (unsubscribe) {
+                unsubscribe();
+            }
+            // Clear all pending timeouts
+            newMessageTimeoutsRef.current.forEach((timeout) => clearTimeout(timeout));
+            newMessageTimeoutsRef.current.clear();
+        };
+    }, [selectedStudentId]);
 
     const handleMarkAsRead = () => {
         socketChat.markAsRead();
@@ -499,6 +737,33 @@ export function LecturerMessages_2() {
             courseId: selectedCourseId,
             studentId: String(conv.otherUserId),
         });
+    };
+
+    // ✅ Handle starting new conversation
+    const handleStartNewMessage = () => {
+        if (!selectedNewMessageStudentId) {
+            toast.warning('Please select a student');
+            return;
+        }
+
+        const selectedStudent = courseStudents.find(s => String(s.user_id) === selectedNewMessageStudentId);
+        if (!selectedStudent) {
+            toast.error('Student not found');
+            return;
+        }
+
+        // Set the student as selected
+        setSelectedStudentId(selectedNewMessageStudentId);
+        setSearchParams({
+            courseId: selectedCourseId,
+            studentId: selectedNewMessageStudentId,
+        });
+
+        // Close dialog and reset
+        setIsNewMessageDialogOpen(false);
+        setSelectedNewMessageStudentId('');
+
+        toast.success(`Starting conversation with ${selectedStudent.name}`);
     };
 
     return (
@@ -540,9 +805,21 @@ export function LecturerMessages_2() {
                                 <MessageCircle className="w-5 h-5" />
                                 Conversations
                             </CardTitle>
-                            <Badge variant="secondary" className="shrink-0">
-                                {conversations.length}
-                            </Badge>
+                            <div className="flex items-center gap-2 shrink-0">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setIsNewMessageDialogOpen(true)}
+                                    className="gap-1"
+                                    title="Start new conversation"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    <span className="hidden sm:inline">New</span>
+                                </Button>
+                                <Badge variant="secondary">
+                                    {conversations.length}
+                                </Badge>
+                            </div>
                         </div>
                     </CardHeader>
 
@@ -568,6 +845,11 @@ export function LecturerMessages_2() {
                                         className={`w-full text-left p-3 rounded-xl border transition-all overflow-hidden ${String(selectedStudentId) === String(conv.otherUserId)
                                             ? 'bg-red-50 border-red-200 shadow-sm'
                                             : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                            } ${
+                                            // Highlight animation for newly updated conversations
+                                            highlightedConversationId === conv.otherUserId
+                                                ? 'animate-conversation-highlight'
+                                                : ''
                                             }`}
                                     >
                                         <div className="flex items-start gap-3 min-w-0">
@@ -583,14 +865,21 @@ export function LecturerMessages_2() {
 
                                             {/* Content */}
                                             <div className="flex-1 min-w-0 overflow-hidden">
-                                                {/* Name + time */}
+                                                {/* Name + time + NEW badge */}
                                                 <div className="flex items-center justify-between gap-2">
                                                     <div className="font-semibold text-sm text-gray-900 wrap-break-word">
                                                         {conv.otherUserName}
                                                     </div>
-                                                    <span className="text-xs text-gray-500 shrink-0">
-                                                        {formatChatTimestamp(conv.lastMessageTime)}
-                                                    </span>
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        {conv.otherUserId && newMessageConversationIds.has(conv.otherUserId) && (
+                                                            <Badge className="bg-green-500 text-white animate-pulse text-xs px-1.5 py-0.5">
+                                                                NEW
+                                                            </Badge>
+                                                        )}
+                                                        <span className="text-xs text-gray-500 whitespace-nowrap">
+                                                            {formatChatTimestamp(conv.lastMessageTime)}
+                                                        </span>
+                                                    </div>
                                                 </div>
 
                                                 {/* Code + Email */}
@@ -643,14 +932,26 @@ export function LecturerMessages_2() {
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <CardTitle className="text-lg">
-                                            {conversations.find(
-                                                (c) => String(c.otherUserId) === String(selectedStudentId)
-                                            )?.otherUserName || 'Conversation'}
+                                            {(() => {
+                                                const convInfo = conversations.find(
+                                                    (c) => String(c.otherUserId) === String(selectedStudentId)
+                                                );
+                                                const studentInfo = courseStudents.find(
+                                                    (s) => String(s.user_id) === String(selectedStudentId)
+                                                );
+                                                return convInfo?.otherUserName || studentInfo?.name || 'Conversation';
+                                            })()}
                                         </CardTitle>
                                         <p className="text-sm text-gray-500">
-                                            {conversations.find(
-                                                (c) => String(c.otherUserId) === String(selectedStudentId)
-                                            )?.otherUserEmail || ''}
+                                            {(() => {
+                                                const convInfo = conversations.find(
+                                                    (c) => String(c.otherUserId) === String(selectedStudentId)
+                                                );
+                                                const studentInfo = courseStudents.find(
+                                                    (s) => String(s.user_id) === String(selectedStudentId)
+                                                );
+                                                return convInfo?.otherUserEmail || studentInfo?.email || '';
+                                            })()}
                                         </p>
                                     </div>
                                     {socketChat.error && (
@@ -791,6 +1092,78 @@ export function LecturerMessages_2() {
                     )}
                 </Card>
             </div>
+
+            {/* ✅ New Message Dialog */}
+            <Dialog open={isNewMessageDialogOpen} onOpenChange={setIsNewMessageDialogOpen}>
+                <DialogContent className="sm:max-w-106.25">
+                    <DialogHeader>
+                        <DialogTitle>Start New Conversation</DialogTitle>
+                        <DialogDescription>
+                            Select a student from {courses.find(c => String(c.course_id) === selectedCourseId)?.name || 'the course'} to begin messaging
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <label className="text-sm font-medium">Select Student</label>
+                            <Select
+                                value={selectedNewMessageStudentId}
+                                onValueChange={setSelectedNewMessageStudentId}
+                            >
+                                <SelectTrigger disabled={studentsLoading}>
+                                    <SelectValue placeholder={studentsLoading ? "Loading students..." : "Select a student"} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {courseStudents.length > 0 ? (
+                                        courseStudents.map((student) => (
+                                            <SelectItem key={student.user_id} value={String(student.user_id)}>
+                                                <div className="flex flex-col">
+                                                    <span>{student.name}</span>
+                                                    <span className="text-xs text-gray-500">{student.user_code || student.email}</span>
+                                                </div>
+                                            </SelectItem>
+                                        ))
+                                    ) : (
+                                        <div className="px-2 py-1 text-sm text-gray-500">
+                                            No students available
+                                        </div>
+                                    )}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {selectedNewMessageStudentId && (
+                            <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                <p className="text-sm text-blue-800">
+                                    {courseStudents.find(s => String(s.user_id) === selectedNewMessageStudentId)?.name &&
+                                        `Ready to message ${courseStudents.find(s => String(s.user_id) === selectedNewMessageStudentId)?.name}`
+                                    }
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                                setIsNewMessageDialogOpen(false);
+                                setSelectedNewMessageStudentId('');
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleStartNewMessage}
+                            disabled={!selectedNewMessageStudentId || studentsLoading}
+                            className="bg-red-600 hover:bg-red-700"
+                        >
+                            Start Conversation
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
