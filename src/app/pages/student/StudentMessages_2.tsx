@@ -23,6 +23,8 @@ import {
     Loader2,
     CheckCheck,
     Plus,
+    FileText,
+    X,
 } from 'lucide-react';
 import {
     Dialog,
@@ -36,6 +38,10 @@ import { toast } from 'react-toastify';
 import { STUDENT_STORAGE_KEYS } from '../../../constants';
 import axiosInstance from '../../services/student/axios';
 import { getStudentCourses } from '../../services/student/courseService';
+import {
+    getGradedSubmissionsForCourse,
+    type GradedSubmissionForMessage,
+} from '../../services/student/assignmentService';
 import {
     fetchChatConversations,
     fetchDirectChatThread,
@@ -125,7 +131,13 @@ const getConversationPreview = (conversation: ChatConversationSummary): string =
         return 'No messages yet';
     }
 
-    return conversation.lastMessage;
+    // Remove submission metadata from preview display
+    const cleanedMessage = removeSubmissionMetadataFromDisplay(conversation.lastMessage);
+
+    // Limit preview to first 100 characters
+    return cleanedMessage.length > 100
+        ? cleanedMessage.substring(0, 100) + '...'
+        : cleanedMessage;
 };
 
 // ✅ Helper function to group messages by date
@@ -181,6 +193,37 @@ const STUDENT_MESSAGE_TEMPLATES = [
     },
 ];
 
+// ✅ Helper function to extract submission metadata from message content
+interface SubmissionMetadata {
+    assignment_id: string;
+    submission_id: string;
+    title: string;
+}
+
+const extractSubmissionMetadata = (messageContent: string): SubmissionMetadata | null => {
+    const match = messageContent.match(
+        /\[SUBMISSION_REFERENCE\]\s*assignment_id=([^&]+)&submission_id=([^&]+)&title=([^\n]+)\s*\[\/SUBMISSION_REFERENCE\]/
+    );
+    if (match) {
+        return {
+            assignment_id: match[1],
+            submission_id: match[2],
+            title: decodeURIComponent(match[3]),
+        };
+    }
+    return null;
+};
+
+// ✅ Helper function to remove submission metadata from display
+const removeSubmissionMetadataFromDisplay = (messageContent: string): string => {
+    return messageContent
+        .replace(
+            /\n*\[SUBMISSION_REFERENCE\]\s*assignment_id=[^&]+&submission_id=[^&]+&title=[^\n]+\s*\[\/SUBMISSION_REFERENCE\]/,
+            ''
+        )
+        .trim();
+};
+
 /**
  * StudentMessages_2 - Modern messaging interface for students
  * Features:
@@ -214,6 +257,13 @@ export function StudentMessages_2() {
 
     // Current user info
     const [currentUserId, setCurrentUserId] = useState<string | number | null>(null);
+
+    // Submission selection state (for Regrade Request template)
+    const [showSubmissionDialog, setShowSubmissionDialog] = useState(false);
+    const [gradedSubmissions, setGradedSubmissions] = useState<GradedSubmissionForMessage[]>([]);
+    const [submissionsLoading, setSubmissionsLoading] = useState(false);
+    const [selectedSubmission, setSelectedSubmission] = useState<GradedSubmissionForMessage | null>(null);
+    const [templatePendingSubmission, setTemplatePendingSubmission] = useState(false);
 
     // Socket hook
     const socketChat: UseChatSocketReturn = useChatSocket({
@@ -328,6 +378,29 @@ export function StudentMessages_2() {
         loadConversationsForCourse();
     }, [selectedCourseId, currentUserId, searchParams]);
 
+    // Load graded submissions for the selected course (for Regrade Request)
+    useEffect(() => {
+        const loadGradedSubmissions = async () => {
+            if (!selectedCourseId) {
+                setGradedSubmissions([]);
+                return;
+            }
+
+            try {
+                setSubmissionsLoading(true);
+                const submissions = await getGradedSubmissionsForCourse(selectedCourseId);
+                setGradedSubmissions(submissions);
+            } catch (error) {
+                console.error('Error loading graded submissions:', error);
+                setGradedSubmissions([]);
+            } finally {
+                setSubmissionsLoading(false);
+            }
+        };
+
+        loadGradedSubmissions();
+    }, [selectedCourseId]);
+
     // Load chat history
     useEffect(() => {
         const loadChatHistory = async () => {
@@ -428,6 +501,13 @@ export function StudentMessages_2() {
             return;
         }
 
+        // Build message content with optional submission metadata
+        let finalMessage = messageInput;
+        if (selectedSubmission) {
+            // Add submission metadata at the end for Regrade Request
+            finalMessage = `${messageInput}\n\n[SUBMISSION_REFERENCE]\nassignment_id=${selectedSubmission.assignment_id}&submission_id=${selectedSubmission.submission_id}&title=${encodeURIComponent(selectedSubmission.title)}\n[/SUBMISSION_REFERENCE]`;
+        }
+
         // Optimistically update conversation preview for the currently selected conversation
         try {
             const now = new Date().toISOString();
@@ -443,7 +523,7 @@ export function StudentMessages_2() {
                         if (String(c.otherUserId) === String(selectedLecturerId)) {
                             return {
                                 ...c,
-                                lastMessage: messageInput,
+                                lastMessage: messageInput, // Show preview without metadata
                                 lastMessageTime: now,
                                 lastMessageIsRead: true,
                             };
@@ -461,7 +541,7 @@ export function StudentMessages_2() {
                             otherUserEmail: lecturer.email,
                             otherUserCode: lecturer.lecturer_code || '',
                             otherUserRole: null,
-                            lastMessage: messageInput,
+                            lastMessage: messageInput, // Show preview without metadata
                             lastMessageTime: now,
                             lastMessageIsRead: true,
                             unreadCount: 0,
@@ -484,8 +564,10 @@ export function StudentMessages_2() {
             console.error('Error updating conversation preview optimistically:', err);
         }
 
-        socketChat.sendMessage(messageInput);
+        socketChat.sendMessage(finalMessage);
         setMessageInput('');
+        setSelectedSubmission(null); // Clear submission after sending
+        setTemplatePendingSubmission(false);
 
         // Show success toast
         toast.success('Message sent');
@@ -510,6 +592,7 @@ export function StudentMessages_2() {
             const receiverId = String(m.receiver_id ?? m.receiver?.user_id ?? '');
             const partnerId = String(senderId === String(currentUserId) ? receiverId : senderId);
             const text = String(m.message ?? '');
+            const cleanedText = removeSubmissionMetadataFromDisplay(text);
             const time = String(m.created_at ?? '');
             const isFromMe = String(m.sender_id) === String(currentUserId);
 
@@ -522,7 +605,7 @@ export function StudentMessages_2() {
                         const isActive = String(partnerId) === String(selectedLecturerId);
                         return {
                             ...c,
-                            lastMessage: text,
+                            lastMessage: cleanedText,
                             lastMessageTime: time,
                             lastMessageIsRead: isActive ? true : (isFromMe ? true : false),
                             unreadCount: isActive ? 0 : (isFromMe ? c.unreadCount : ((c.unreadCount || 0) + 1)),
@@ -555,7 +638,7 @@ export function StudentMessages_2() {
                     otherUserEmail: (m.sender?.email ?? m.receiver?.email ?? '') as string,
                     otherUserCode: '',
                     otherUserRole: m.sender?.role ?? null,
-                    lastMessage: text,
+                    lastMessage: cleanedText,
                     lastMessageTime: time,
                     unreadCount: isActiveNew ? 0 : (isFromMe ? 0 : 1),
                     lastMessageIsRead: isActiveNew ? true : isFromMe,
@@ -582,7 +665,16 @@ export function StudentMessages_2() {
     };
 
     const handleTemplateSelect = (templateValue: string) => {
-        if (templateValue) {
+        // Check if the selected template is "Regrade Request"
+        const isRegradeRequest = STUDENT_MESSAGE_TEMPLATES.some(
+            (t) => t.label === 'Regrade Request' && t.value === templateValue
+        );
+
+        if (isRegradeRequest) {
+            // For Regrade Request, don't set input immediately - wait for submission selection
+            setTemplatePendingSubmission(true);
+            setShowSubmissionDialog(true);
+        } else if (templateValue) {
             setMessageInput(templateValue);
         }
     };
@@ -605,8 +697,77 @@ export function StudentMessages_2() {
         toast.success(`Starting conversation with ${lecturer.name}`);
     };
 
+    // Handle submission selection for Regrade Request
+    const handleSubmissionSelected = (submission: GradedSubmissionForMessage) => {
+        setSelectedSubmission(submission);
+        setShowSubmissionDialog(false);
+
+        // Set the template message with submission reference
+        const templateMessage = STUDENT_MESSAGE_TEMPLATES.find((t) => t.label === 'Regrade Request')?.value || '';
+        setMessageInput(templateMessage);
+        setTemplatePendingSubmission(false);
+    };
+
     return (
         <div className="flex min-h-screen flex-col gap-4 bg-gray-50 p-4 lg:p-6 overflow-x-hidden">
+            {/* Submission Selection Dialog */}
+            <Dialog open={showSubmissionDialog} onOpenChange={setShowSubmissionDialog}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Select Submission for Regrade Request</DialogTitle>
+                        <DialogDescription>
+                            Choose a graded assignment to attach to your regrade request
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3 max-h-96 overflow-y-auto">
+                        {submissionsLoading ? (
+                            <div className="flex items-center justify-center py-8">
+                                <Loader2 className="w-5 h-5 animate-spin text-red-500" />
+                            </div>
+                        ) : gradedSubmissions.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500">
+                                <AlertCircle className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                                <p>No graded assignments found in this course</p>
+                            </div>
+                        ) : (
+                            gradedSubmissions.map((submission) => (
+                                <button
+                                    key={submission.submission_id}
+                                    onClick={() => handleSubmissionSelected(submission)}
+                                    className="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-red-400 hover:bg-red-50 transition-colors"
+                                >
+                                    <div className="flex items-start gap-3">
+                                        <FileText className="w-5 h-5 text-gray-400 mt-0.5 shrink-0" />
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-medium text-gray-900 truncate">
+                                                {submission.title}
+                                            </p>
+                                            <p className="text-sm text-gray-500 mt-0.5">
+                                                Score: {submission.grade_score}/{submission.max_score}
+                                            </p>
+                                            <p className="text-xs text-gray-400 mt-1">
+                                                Assignment ID: {submission.assignment_id} | Submission ID: {submission.submission_id}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </button>
+                            ))
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setShowSubmissionDialog(false);
+                                setTemplatePendingSubmission(false);
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             {/* Header */}
             <div className="mb-4">
                 <h1 className="text-3xl font-bold text-gray-900">Messages</h1>
@@ -838,6 +999,12 @@ export function StudentMessages_2() {
                                                 new Date(allMessages[index - 1].createdAt).toDateString() !==
                                                 new Date(msg.createdAt).toDateString();
 
+                                            // ✅ Extract submission metadata if present
+                                            const submissionMetadata = extractSubmissionMetadata(msg.content);
+                                            const displayContent = submissionMetadata
+                                                ? removeSubmissionMetadataFromDisplay(msg.content)
+                                                : msg.content;
+
                                             return (
                                                 <div key={index}>
                                                     {showDateSeparator && (
@@ -855,23 +1022,63 @@ export function StudentMessages_2() {
                                                             : 'justify-start'
                                                             }`}
                                                     >
-                                                        <div
-                                                            className={`max-w-xs px-4 py-2 rounded-lg ${msg.sender === 'sent'
-                                                                ? 'bg-red-500 text-white'
-                                                                : 'bg-gray-200 text-gray-900'
-                                                                }`}
-                                                        >
-                                                            <p className="text-sm wrap-break-word">
-                                                                {msg.content}
-                                                            </p>
-                                                            <div className="flex items-center gap-1 mt-1">
-                                                                <span className="text-xs opacity-70">
-                                                                    {msg.time}
-                                                                </span>
-                                                                {msg.sender === 'sent' && msg.isRead && (
-                                                                    <CheckCheck className="w-4 h-4 opacity-70" />
-                                                                )}
+                                                        <div className="flex flex-col gap-2 max-w-xs">
+                                                            <div
+                                                                className={`px-4 py-2 rounded-lg ${msg.sender === 'sent'
+                                                                    ? 'bg-red-500 text-white'
+                                                                    : 'bg-gray-200 text-gray-900'
+                                                                    }`}
+                                                            >
+                                                                <p className="text-sm wrap-break-word">
+                                                                    {displayContent}
+                                                                </p>
+                                                                <div className="flex items-center gap-1 mt-1">
+                                                                    <span className="text-xs opacity-70">
+                                                                        {msg.time}
+                                                                    </span>
+                                                                    {msg.sender === 'sent' && msg.isRead && (
+                                                                        <CheckCheck className="w-4 h-4 opacity-70" />
+                                                                    )}
+                                                                </div>
                                                             </div>
+                                                            {/* ✅ Show submission reference if present */}
+                                                            {submissionMetadata && (
+                                                                <div
+                                                                    className={`px-3 py-2 rounded-lg text-sm border ${msg.sender === 'sent'
+                                                                        ? 'bg-red-100 border-red-300 text-red-900'
+                                                                        : 'bg-gray-100 border-gray-300 text-gray-900'
+                                                                        }`}
+                                                                >
+                                                                    <div className="flex items-start gap-2">
+                                                                        <FileText className="w-4 h-4 mt-0.5 shrink-0 opacity-60" />
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <p className="font-medium truncate">
+                                                                                {submissionMetadata.title}
+                                                                            </p>
+                                                                            <p className="text-xs opacity-70 mt-0.5">
+                                                                                Assignment ID: {submissionMetadata.assignment_id}
+                                                                            </p>
+                                                                            <p className="text-xs opacity-70">
+                                                                                Submission ID: {submissionMetadata.submission_id}
+                                                                            </p>
+                                                                            {msg.sender === 'received' && (
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    variant="ghost"
+                                                                                    className="mt-1 h-6 text-xs px-2 opacity-80 hover:opacity-100"
+                                                                                    onClick={() => {
+                                                                                        // Navigate to submission view (can be implemented later)
+                                                                                        const viewUrl = `/student/submissions/${submissionMetadata.submission_id}/grade`;
+                                                                                        window.open(viewUrl, '_blank');
+                                                                                    }}
+                                                                                >
+                                                                                    View Submission →
+                                                                                </Button>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -908,6 +1115,32 @@ export function StudentMessages_2() {
                                         ))}
                                     </SelectContent>
                                 </Select>
+
+                                {/* ✅ Submission preview (for Regrade Request) */}
+                                {selectedSubmission && (
+                                    <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="flex items-start gap-2 flex-1 min-w-0">
+                                                <FileText className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-medium text-gray-900 truncate">
+                                                        {selectedSubmission.title}
+                                                    </p>
+                                                    <p className="text-sm text-gray-600 mt-0.5">
+                                                        Score: {selectedSubmission.grade_score}/{selectedSubmission.max_score}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => setSelectedSubmission(null)}
+                                                className="p-1 hover:bg-blue-200 rounded transition-colors shrink-0"
+                                                title="Remove submission"
+                                            >
+                                                <X className="w-4 h-4 text-blue-600" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="flex gap-2">
                                     <Textarea

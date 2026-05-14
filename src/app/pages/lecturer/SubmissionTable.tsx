@@ -74,10 +74,10 @@ export function SubmissionTable() {
                     getAssignmentDetails(assignment_id),
                     getAssignmentSubmissions(assignment_id),
                 ]);
-                
+
                 setCourse(parseCoursePayload(coursePayload));
                 setAssignment(assignmentPayload);
-                
+
                 setSubmissions(submissionList);
                 console.log('Fetched submissions:', submissionList);
             } catch (error) {
@@ -439,11 +439,12 @@ export function SubmissionTable() {
                                                     </TableCell>
                                                     <TableCell>
                                                         <div className="flex items-center gap-2">
-                                                            {getStatusBadge(submissionStatus)}
-                                                            {submission.has_published && (
+                                                            {submission.has_published ? (
                                                                 <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
                                                                     Published
                                                                 </Badge>
+                                                            ) : (
+                                                                getStatusBadge(submissionStatus)
                                                             )}
                                                         </div>
                                                     </TableCell>

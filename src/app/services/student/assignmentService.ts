@@ -499,3 +499,48 @@ export const getGradedAssignments = async (
         throw error;
     }
 };
+
+export type GradedSubmissionForMessage = {
+    assignment_id: number | string;
+    submission_id: number | string;
+    title: string;
+    max_score: number;
+    grade_score: number | undefined;
+    graded_at: string;
+};
+
+/**
+ * Get graded submissions for a specific course.
+ * Filters assignments that have been graded and returns simplified submission info.
+ */
+export const getGradedSubmissionsForCourse = async (
+    course_id: string
+): Promise<GradedSubmissionForMessage[]> => {
+    try {
+        const result = await getAssignmentsForCourse(course_id, 1, 100, '');
+
+        // Filter assignments that have been graded (has_graded=true and has submission_id)
+        const gradedSubmissions = result.assignments
+            .filter((assignment) => {
+                return (
+                    assignment.has_graded === true &&
+                    assignment.submission_id &&
+                    assignment.grade_score !== undefined &&
+                    assignment.grade_score !== null
+                );
+            })
+            .map((assignment) => ({
+                assignment_id: assignment.assignment_id,
+                submission_id: assignment.submission_id!,
+                title: assignment.title,
+                max_score: assignment.max_score,
+                grade_score: assignment.grade_score,
+                graded_at: assignment.submission_submitted_at || new Date().toISOString(),
+            }));
+
+        return gradedSubmissions;
+    } catch (error) {
+        console.error(`Error fetching graded submissions for course ${course_id}:`, error);
+        throw error;
+    }
+};

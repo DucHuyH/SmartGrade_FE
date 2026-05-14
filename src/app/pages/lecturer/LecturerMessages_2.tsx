@@ -23,6 +23,7 @@ import {
     Loader2,
     CheckCheck,
     Plus,
+    FileText,
 } from 'lucide-react';
 import {
     Dialog,
@@ -98,6 +99,37 @@ const groupMessagesByDate = (messages: any[]) => {
     return groups;
 };
 
+// ✅ Helper function to extract submission metadata from message content
+interface SubmissionMetadata {
+    assignment_id: string;
+    submission_id: string;
+    title: string;
+}
+
+const extractSubmissionMetadata = (messageContent: string): SubmissionMetadata | null => {
+    const match = messageContent.match(
+        /\[SUBMISSION_REFERENCE\]\s*assignment_id=([^&]+)&submission_id=([^&]+)&title=([^\n]+)\s*\[\/SUBMISSION_REFERENCE\]/
+    );
+    if (match) {
+        return {
+            assignment_id: match[1],
+            submission_id: match[2],
+            title: decodeURIComponent(match[3]),
+        };
+    }
+    return null;
+};
+
+// ✅ Helper function to remove submission metadata from display
+const removeSubmissionMetadataFromDisplay = (messageContent: string): string => {
+    return messageContent
+        .replace(
+            /\n*\[SUBMISSION_REFERENCE\]\s*assignment_id=[^&]+&submission_id=[^&]+&title=[^\n]+\s*\[\/SUBMISSION_REFERENCE\]/,
+            ''
+        )
+        .trim();
+};
+
 const getConversationInitials = (name: string): string => {
     const words = name.trim().split(/\s+/).filter(Boolean);
 
@@ -117,7 +149,13 @@ const getConversationPreview = (conversation: ChatConversationSummary): string =
         return 'No messages yet';
     }
 
-    return conversation.lastMessage;
+    // Remove submission metadata from preview display
+    const cleanedMessage = removeSubmissionMetadataFromDisplay(conversation.lastMessage);
+
+    // Limit preview to first 100 characters
+    return cleanedMessage.length > 100
+        ? cleanedMessage.substring(0, 100) + '...'
+        : cleanedMessage;
 };
 
 // ✅ Message templates for lecturers
@@ -511,6 +549,7 @@ export function LecturerMessages_2() {
             const receiverId = String(m.receiver_id ?? m.receiver?.user_id ?? '');
             const partnerId = String(senderId === String(currentUserId) ? receiverId : senderId);
             const text = String(m.message ?? '');
+            const cleanedText = removeSubmissionMetadataFromDisplay(text);
             const time = String(m.created_at ?? '');
             const isFromMe = String(m.sender_id) === String(currentUserId);
 
@@ -522,7 +561,7 @@ export function LecturerMessages_2() {
                         const isActive = String(partnerId) === String(selectedStudentId);
                         return {
                             ...c,
-                            lastMessage: text,
+                            lastMessage: cleanedText,
                             lastMessageTime: time,
                             lastMessageIsRead: isActive ? true : (isFromMe ? true : false),
                             unreadCount: isActive ? 0 : (isFromMe ? c.unreadCount : ((c.unreadCount || 0) + 1)),
@@ -552,7 +591,7 @@ export function LecturerMessages_2() {
                     otherUserEmail: (m.sender?.email ?? m.receiver?.email ?? '') as string,
                     otherUserCode: '',
                     otherUserRole: m.sender?.role ?? null,
-                    lastMessage: text,
+                    lastMessage: cleanedText,
                     lastMessageTime: time,
                     unreadCount: isActiveNew ? 0 : (isFromMe ? 0 : 1),
                     lastMessageIsRead: isActiveNew ? true : isFromMe,
@@ -984,6 +1023,12 @@ export function LecturerMessages_2() {
                                                 new Date(allMessages[index - 1].createdAt).toDateString() !==
                                                 new Date(msg.createdAt).toDateString();
 
+                                            // ✅ Extract submission metadata if present
+                                            const submissionMetadata = extractSubmissionMetadata(msg.content);
+                                            const displayContent = submissionMetadata
+                                                ? removeSubmissionMetadataFromDisplay(msg.content)
+                                                : msg.content;
+
                                             return (
                                                 <div key={index}>
                                                     {showDateSeparator && (
@@ -1001,23 +1046,63 @@ export function LecturerMessages_2() {
                                                             : 'justify-start'
                                                             }`}
                                                     >
-                                                        <div
-                                                            className={`max-w-xs px-4 py-2 rounded-lg ${msg.sender === 'sent'
-                                                                ? 'bg-red-500 text-white'
-                                                                : 'bg-gray-200 text-gray-900'
-                                                                }`}
-                                                        >
-                                                            <p className="text-sm wrap-break-word">
-                                                                {msg.content}
-                                                            </p>
-                                                            <div className="flex items-center gap-1 mt-1">
-                                                                <span className="text-xs opacity-70">
-                                                                    {msg.time}
-                                                                </span>
-                                                                {msg.sender === 'sent' && msg.isRead && (
-                                                                    <CheckCheck className="w-4 h-4 opacity-70" />
-                                                                )}
+                                                        <div className="flex flex-col gap-2 max-w-xs">
+                                                            <div
+                                                                className={`px-4 py-2 rounded-lg ${msg.sender === 'sent'
+                                                                    ? 'bg-red-500 text-white'
+                                                                    : 'bg-gray-200 text-gray-900'
+                                                                    }`}
+                                                            >
+                                                                <p className="text-sm wrap-break-word">
+                                                                    {displayContent}
+                                                                </p>
+                                                                <div className="flex items-center gap-1 mt-1">
+                                                                    <span className="text-xs opacity-70">
+                                                                        {msg.time}
+                                                                    </span>
+                                                                    {msg.sender === 'sent' && msg.isRead && (
+                                                                        <CheckCheck className="w-4 h-4 opacity-70" />
+                                                                    )}
+                                                                </div>
                                                             </div>
+                                                            {/* ✅ Show submission reference if present */}
+                                                            {submissionMetadata && (
+                                                                <div
+                                                                    className={`px-3 py-2 rounded-lg text-sm border ${msg.sender === 'sent'
+                                                                        ? 'bg-red-100 border-red-300 text-red-900'
+                                                                        : 'bg-blue-100 border-blue-300 text-blue-900'
+                                                                        }`}
+                                                                >
+                                                                    <div className="flex items-start gap-2">
+                                                                        <FileText className="w-4 h-4 mt-0.5 shrink-0 opacity-60" />
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <p className="font-medium truncate">
+                                                                                {submissionMetadata.title}
+                                                                            </p>
+                                                                            <p className="text-xs opacity-70 mt-0.5">
+                                                                                Assignment ID: {submissionMetadata.assignment_id}
+                                                                            </p>
+                                                                            <p className="text-xs opacity-70">
+                                                                                Submission ID: {submissionMetadata.submission_id}
+                                                                            </p>
+                                                                            {msg.sender === 'received' && (
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    variant="ghost"
+                                                                                    className="mt-1 h-6 text-xs px-2 opacity-80 hover:opacity-100"
+                                                                                    onClick={() => {
+                                                                                        // Navigate to submission review page with correct format
+                                                                                        const viewUrl = `/lecturer/courses/${selectedCourseId}/assignments/${submissionMetadata.assignment_id}/submissions/${submissionMetadata.submission_id}/ai-grading`;
+                                                                                        window.open(viewUrl, '_blank');
+                                                                                    }}
+                                                                                >
+                                                                                    View Submission →
+                                                                                </Button>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
