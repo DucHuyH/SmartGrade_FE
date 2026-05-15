@@ -143,9 +143,13 @@ export const importCourseStudents = async (
     }
 };
 
-export const getCourseStudents = async (courseId: string) => {
+export const getCourseStudents = async (courseId: string, limit: number) => {
     try {
-        const response = await axiosInstance.get(`/courses/${courseId}/students`);
+        const response = await axiosInstance.get(`/courses/${courseId}/students`, {
+            params: {
+                limit,
+            },
+        });
         if (!response.data || !response.data.data) {
             throw new Error("Invalid response format: missing 'data' field");
         }

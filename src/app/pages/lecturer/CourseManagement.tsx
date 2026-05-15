@@ -186,7 +186,7 @@ export function CourseManagement() {
     const countEntries = await Promise.all(
       courseData.map(async (course) => {
         try {
-          const response = await getCourseStudents(course.course_id);
+          const response = await getCourseStudents(course.course_id, 1000);
           return [course.course_id, extractStudentCount(response)] as const;
         } catch (error) {
           console.error(`Error preloading student count for ${course.course_id}:`, error);

@@ -340,7 +340,7 @@ export function LecturerMessages_2() {
 
             try {
                 setStudentsLoading(true);
-                const students = await getCourseStudents(String(selectedCourseId));
+                const students = await getCourseStudents(String(selectedCourseId), 100); // Adjust limit as needed
 
                 console.log('Loaded course students:', students.data?.course);
 

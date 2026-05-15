@@ -196,9 +196,18 @@ export const getAssignmentsForCourse = async (
     }
 };
 
-export const getAssignmentSubmissions = async (assignmentId: string): Promise<LecturerSubmission[]> => {
+export const getAssignmentSubmissions = async (
+    assignmentId: string,
+    page: number = 1,
+    limit: number = 10000
+): Promise<LecturerSubmission[]> => {
     try {
-        const response = await axiosInstance.get(`/submissions/${assignmentId}`);
+        const response = await axiosInstance.get(`/submissions/${assignmentId}`, {
+            params: {
+                page,
+                limit,
+            },
+        });
         const payload = (response.data?.data as unknown) ?? response.data;
         console.log(`Raw response for submissions of assignment ${assignmentId}:`, payload);
 
@@ -700,7 +709,7 @@ export const saveSubmissionAnnotations = async (
             }
         );
 
-        const data = response.data?.data;  
+        const data = response.data?.data;
 
         return {
             success: data?.success !== false,

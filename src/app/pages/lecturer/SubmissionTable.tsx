@@ -79,6 +79,7 @@ export function SubmissionTable() {
                 setAssignment(assignmentPayload);
 
                 setSubmissions(submissionList);
+                
                 console.log('Fetched submissions:', submissionList);
             } catch (error) {
                 console.error('Error loading submission page data:', error);
