@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useSearchParams } from 'react-router';
+import { useSearchParams, useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
@@ -206,6 +206,7 @@ const LECTURER_MESSAGE_TEMPLATES = [
 export function LecturerMessages_2() {
     // Route and UI state
     const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
     const [selectedCourseId, setSelectedCourseId] = useState<string>('');
     const [selectedStudentId, setSelectedStudentId] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState('');
@@ -1091,9 +1092,18 @@ export function LecturerMessages_2() {
                                                                                     variant="ghost"
                                                                                     className="mt-1 h-6 text-xs px-2 opacity-80 hover:opacity-100"
                                                                                     onClick={() => {
-                                                                                        // Navigate to submission review page with correct format
                                                                                         const viewUrl = `/lecturer/courses/${selectedCourseId}/assignments/${submissionMetadata.assignment_id}/submissions/${submissionMetadata.submission_id}/ai-grading`;
                                                                                         window.open(viewUrl, '_blank');
+                                                                                        // const currentCourse = courses.find(c => String(c.course_id) === selectedCourseId);
+                                                                                        // navigate(
+                                                                                        //     `/lecturer/courses/${selectedCourseId}/assignments/${submissionMetadata.assignment_id}/submissions/${submissionMetadata.submission_id}/ai-grading`,
+                                                                                        //     {
+                                                                                        //         state: {
+                                                                                        //             courseTitle: currentCourse?.name,
+                                                                                        //             assignmentTitle: submissionMetadata.title,
+                                                                                        //         },
+                                                                                        //     }
+                                                                                        // );
                                                                                     }}
                                                                                 >
                                                                                     View Submission →
@@ -1116,7 +1126,7 @@ export function LecturerMessages_2() {
 
                             {/* Input area */}
                             <div className="border-t p-4 space-y-3 shrink-0">
-                                <Button
+                                {/* <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={handleMarkAsRead}
@@ -1124,7 +1134,7 @@ export function LecturerMessages_2() {
                                 >
                                     <Clock className="w-4 h-4 mr-2" />
                                     Mark as Read
-                                </Button>
+                                </Button> */}
 
                                 {/* ✅ Template selector */}
                                 <Select onValueChange={handleTemplateSelect}>

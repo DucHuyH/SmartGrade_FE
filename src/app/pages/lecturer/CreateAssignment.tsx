@@ -14,7 +14,7 @@ import { toast } from 'react-toastify';
 import { RUBRIC_TEMPLATES } from '../../constants/rubricTemplates';
 import { ScoringLevel, ScoringLevelsEditor, createDefaultScoringLevels } from '../../components/ScoringLevelsEditor';
 
-const FILE_TYPE_OPTIONS = ['pdf', 'docx', 'xlsx', 'txt']
+const FILE_TYPE_OPTIONS = ['pdf', 'docx']
 const DEADLINE_OFFSET_MINUTES = 5
 const ASSIGNMENT_TYPE_OPTIONS = [
   { value: 'project', label: 'Project' },
@@ -168,7 +168,7 @@ export function CreateAssignment() {
   const [assignmentType, setAssignmentType] = useState<AssignmentTypeOption>('project');
   const [assignmentTypeOther, setAssignmentTypeOther] = useState('');
   const [deadline, setDeadline] = useState(getMinimumDeadlineInput());
-  const [totalPoints, setTotalPoints] = useState('100');
+  const [totalPoints, setTotalPoints] = useState('10');
   const [maxFileSizeMb, setMaxFileSizeMb] = useState('10');
   const [allowLateSubmissions, setAllowLateSubmissions] = useState(true);
   const [enableAiGrading, setEnableAiGrading] = useState(true);

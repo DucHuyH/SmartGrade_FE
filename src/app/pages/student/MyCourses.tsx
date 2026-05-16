@@ -404,11 +404,11 @@ export function MyCourses() {
                     View Assignments
                   </Button>
                 </Link>
-                <Link to={`/student/courses/${course.course_id}/materials`} className="flex-1">
+                {/* <Link to={`/student/courses/${course.course_id}/materials`} className="flex-1">
                   <Button className="w-full">
                     Course Materials
                   </Button>
-                </Link>
+                </Link> */}
               </div>
             </CardContent>
           </Card>

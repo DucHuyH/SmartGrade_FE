@@ -166,6 +166,8 @@ export const getCourseStudentGrades = async (courseId?: string) => {
             params: courseId ? { courseId } : undefined,
         });
 
+        console.log('Raw response data for student grades:', response.data);
+
         if (!response.data || !response.data.data) {
             throw new Error("Invalid response format: missing 'data' field");
         }

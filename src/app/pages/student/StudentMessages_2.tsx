@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useSearchParams } from 'react-router';
+import { useSearchParams, useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { Button } from '../../components/ui/button';
@@ -236,6 +236,7 @@ const removeSubmissionMetadataFromDisplay = (messageContent: string): string => 
 export function StudentMessages_2() {
     // Route and UI state
     const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
     const [selectedCourseId, setSelectedCourseId] = useState<string>('');
     const [selectedLecturerId, setSelectedLecturerId] = useState<string>('');
     const [searchQuery, setSearchQuery] = useState('');
@@ -748,6 +749,7 @@ export function StudentMessages_2() {
                                             <p className="text-xs text-gray-400 mt-1">
                                                 Assignment ID: {submission.assignment_id} | Submission ID: {submission.submission_id}
                                             </p>
+
                                         </div>
                                     </div>
                                 </button>
@@ -1061,15 +1063,29 @@ export function StudentMessages_2() {
                                                                             <p className="text-xs opacity-70">
                                                                                 Submission ID: {submissionMetadata.submission_id}
                                                                             </p>
-                                                                            {msg.sender === 'received' && (
+                                                                            {msg.sender === 'sent' && (
                                                                                 <Button
                                                                                     size="sm"
                                                                                     variant="ghost"
                                                                                     className="mt-1 h-6 text-xs px-2 opacity-80 hover:opacity-100"
                                                                                     onClick={() => {
-                                                                                        // Navigate to submission view (can be implemented later)
                                                                                         const viewUrl = `/student/submissions/${submissionMetadata.submission_id}/grade`;
                                                                                         window.open(viewUrl, '_blank');
+                                                                                        // const currentCourse = courses.find(c => String(c.course_id) === selectedCourseId);
+                                                                                        // navigate(
+                                                                                        //     `/student/submissions/${submissionMetadata.submission_id}/grade`,
+                                                                                        //     {
+                                                                                        //         state: {
+                                                                                        //             course_id: selectedCourseId,
+                                                                                        //             courseName: currentCourse?.name,
+                                                                                        //             courseCode: currentCourse?.course_code,
+                                                                                        //             assignmentTitle: submissionMetadata.title,
+                                                                                        //             assignmentId: submissionMetadata.assignment_id,
+                                                                                        //             lecturerId: currentCourse?.lecturer_id,
+                                                                                        //             lecturerName: currentCourse?.lecturer_name,
+                                                                                        //         },
+                                                                                        //     }
+                                                                                        // );
                                                                                     }}
                                                                                 >
                                                                                     View Submission →
@@ -1092,7 +1108,7 @@ export function StudentMessages_2() {
 
                             {/* Input area */}
                             <div className="border-t p-4 space-y-3 shrink-0">
-                                <Button
+                                {/* <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={handleMarkAsRead}
@@ -1100,7 +1116,7 @@ export function StudentMessages_2() {
                                 >
                                     <Clock className="w-4 h-4 mr-2" />
                                     Mark as Read
-                                </Button>
+                                </Button> */}
 
                                 {/* ✅ Template selector */}
                                 <Select onValueChange={handleTemplateSelect}>

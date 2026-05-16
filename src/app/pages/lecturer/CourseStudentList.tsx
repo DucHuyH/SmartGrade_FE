@@ -79,7 +79,7 @@ const getStudentAverage = (student: StudentListItem, assignmentsForCourse: Stude
         const score = typeof studentAssignment?.score === 'number' ? studentAssignment!.score! : 0;
         const maxFromAssignment = typeof assignment.maxScore === 'number' && assignment.maxScore > 0 ? assignment.maxScore : null;
         const maxFromStudent = typeof studentAssignment?.maxScore === 'number' && studentAssignment!.maxScore! > 0 ? studentAssignment!.maxScore! : null;
-        const max = maxFromAssignment ?? maxFromStudent ?? 100;
+        const max = maxFromAssignment ?? maxFromStudent ?? 10;
 
         return (score / max) * 100;
     });
@@ -91,7 +91,7 @@ const getStudentAverage = (student: StudentListItem, assignmentsForCourse: Stude
 
 const getLetterGrade = (average: number | null) => {
     if (average === null) return '-';
-    // Use gradingSystem.getGradeLetter with maxScore = 100
+    // Use gradingSystem.getGradeLetter with maxScore = 10
     return getGradeLetter(average, 100);
 };
 
@@ -222,6 +222,7 @@ export function CourseStudentList() {
 
         try {
             const response = await getCourseStudentGrades(course_id);
+            
             const parsedStudents = parseStudentListPayload(response);
             setStudents(parsedStudents);
         } catch (error) {

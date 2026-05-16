@@ -15,13 +15,13 @@ import { getAllCourses } from '../../services/lecturer/courseService';
 import { toast } from 'react-toastify';
 import { ScoringLevel, ScoringLevelsEditor, createDefaultScoringLevels } from '../../components/ScoringLevelsEditor';
 
-const FILE_TYPE_OPTIONS = ['pdf', 'docx', 'xlsx', 'txt']
+const FILE_TYPE_OPTIONS = ['pdf', 'docx']
 const DEADLINE_OFFSET_MINUTES = 5
 const ASSIGNMENT_TYPE_OPTIONS = [
   { value: 'project', label: 'Project' },
   { value: 'long essay', label: 'Long Essay' },
   { value: 'short answer', label: 'Short Answer' },
-  { value: 'other', label: 'Other' },
+  { value: 'other', label: 'Other' }, 
 ] as const
 
 type AssignmentTypeOption = typeof ASSIGNMENT_TYPE_OPTIONS[number]['value']
@@ -171,7 +171,7 @@ export function EditAssignment() {
   const [questions, setQuestions] = useState('');
   const [requirements, setRequirements] = useState('');
   const [deadline, setDeadline] = useState('');
-  const [totalPoints, setTotalPoints] = useState('100');
+  const [totalPoints, setTotalPoints] = useState('10');
   const [maxFileSizeMb, setMaxFileSizeMb] = useState('10');
   const [allowLateSubmissions, setAllowLateSubmissions] = useState(true);
   const [enableAiGrading, setEnableAiGrading] = useState(true);

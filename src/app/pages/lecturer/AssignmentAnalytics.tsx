@@ -80,15 +80,15 @@ export function AssignmentAnalytics() {
 
         let feedback = `## Assignment Performance Summary\n\n`;
         feedback += `### Overall Statistics\n`;
-        feedback += `- **Average Correct Rate**: ${Math.round(avgCorrectRate)}%\n`;
-        feedback += `- **Total Questions/Items**: ${statistics.length}\n\n`;
+        feedback += `- Average Correct Rate: ${Math.round(avgCorrectRate)}%\n`;
+        feedback += `- Total Questions/Items: ${statistics.length}\n\n`;
 
         feedback += `### High Performance\n`;
-        feedback += `- **Highest Performance**: "${highestRate.item_name}" with ${Math.round(highestRate.correct_rate)}% correct rate\n`;
+        feedback += `- Highest Performance: "${highestRate.item_name}" with ${Math.round(highestRate.correct_rate)}% correct rate\n`;
         feedback += `  Students performed best on this question, suggesting clear explanation or familiar concept.\n\n`;
 
         feedback += `### Needs Improvement\n`;
-        feedback += `- **Lowest Performance**: "${lowestRate.item_name}" with ${Math.round(lowestRate.correct_rate)}% correct rate\n`;
+        feedback += `- Lowest Performance: "${lowestRate.item_name}" with ${Math.round(lowestRate.correct_rate)}% correct rate\n`;
         feedback += `  Students struggled most on this question. Consider:\n`;
         feedback += `  - Reviewing the question clarity and wording\n`;
         feedback += `  - Checking if prerequisite concepts were covered\n`;
