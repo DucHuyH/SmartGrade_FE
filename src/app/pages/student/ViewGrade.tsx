@@ -391,9 +391,12 @@ export function ViewGrade() {
                                 {grade.final_score !== null && (
                                     <div className="flex justify-between items-center">
                                         <span className="text-sm text-gray-600">Your Score</span>
-                                        <span className="font-semibold text-gray-900">
-                                            {grade.final_score}%
-                                        </span>
+                                        <div className="text-right">
+
+                                            <span className="text-sm text-gray-500 ml-2">
+                                                {scorePercentage.toFixed(1)}%
+                                            </span>
+                                        </div>
                                     </div>
                                 )}
 

@@ -30,9 +30,9 @@ export const normalizeSubmissionIdentifier = (submissionId: string | number | nu
     return lastNumberMatch?.[1] ?? rawValue;
 };
 
-const normalizeStatus = (status: unknown): 'not_submitted' | 'pending' | 'graded' => {
+const normalizeStatus = (status: unknown): 'not_submitted' | 'pending' | 'graded' | 'published' => {
     const normalized = String(status).toLowerCase().trim();
-    if (normalized === 'not_submitted' || normalized === 'pending' || normalized === 'graded') {
+    if (normalized === 'not_submitted' || normalized === 'pending' || normalized === 'graded' || normalized === 'published') {
         return normalized;
     }
     return 'pending'; // default fallback

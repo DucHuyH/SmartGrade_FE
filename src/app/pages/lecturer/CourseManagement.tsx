@@ -626,7 +626,7 @@ export function CourseManagement() {
           placeholder="Search courses by name or code..."
           className="flex-1 max-w-md"
         />
-        <div className="flex gap-2">
+        {/* <div className="flex gap-2">
           <Select value={semesterFilter} onValueChange={setSemesterFilter}>
             <SelectTrigger className="w-60">
               <Filter className="h-4 w-4 mr-2" />
@@ -641,7 +641,7 @@ export function CourseManagement() {
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </div> */}
       </div>
 
       {isLoadingCourses ? (
