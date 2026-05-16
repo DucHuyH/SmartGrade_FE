@@ -12,7 +12,7 @@ import { CreateAssignment } from './app/pages/lecturer/CreateAssignment'
 import { EditAssignment } from './app/pages/lecturer/EditAssignment'
 import { CourseStudentList } from './app/pages/lecturer/CourseStudentList'
 import { SubmissionTable } from './app/pages/lecturer/SubmissionTable'
-import { AIGradingReview } from './app/pages/lecturer/AIGradingReview'
+import { AIGradingReview } from './app/pages/lecturer/AIGradingReview_2'
 import { FullGradebook } from './app/pages/lecturer/FullGradebook'
 import { AssignmentAnalytics } from './app/pages/lecturer/AssignmentAnalytics'
 
