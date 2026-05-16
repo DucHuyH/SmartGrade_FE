@@ -11,7 +11,7 @@ export type LecturerSubmission = {
     final_score: number | null;
     max_score: number | null;
     score: number | null;
-    status: 'not_submitted' | 'pending' | 'graded';
+    status: 'not_submitted' | 'pending' | 'graded' | 'published';
     has_published: boolean;
     file_url: string | null;
 };
