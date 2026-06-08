@@ -12,6 +12,7 @@ interface SendComposedMessagePayload {
     recipientIds: number[]; // Có thể là 1 hoặc nhiều
     message: string;
     messageType: 'one-to-one' | 'group';
+    courseId?: number;
 }
 
 /**
@@ -105,9 +106,13 @@ export const useComposeMessage = (role: 'lecturer' | 'student', options?: Compos
                         // Delay để tránh rate limiting (300ms)
                         const delayMs = index * 350;
 
+                        // Tự động xác định course_id dựa vào role nếu không được truyền trực tiếp
+                        const courseId = payload.courseId ?? (role === 'lecturer' ? payload.assignmentId : recipientId);
+
                         const timeoutId = setTimeout(() => {
                             sendChatMessage(
                                 {
+                                    course_id: courseId,
                                     assignment_id: payload.assignmentId,
                                     other_user_id: recipientId,
                                     message: payload.message,
@@ -182,14 +187,19 @@ export const useComposeMessage = (role: 'lecturer' | 'student', options?: Compos
                 return Promise.resolve(false);
             }
 
+            // Đối với student, recipientId chính là courseId.
+            // Đối với lecturer, assignmentId chính là courseId.
+            const courseId = role === 'lecturer' ? numAssignmentId : numRecipientId;
+
             return sendMessage({
+                courseId,
                 assignmentId: numAssignmentId,
                 recipientIds: [numRecipientId],
                 message,
                 messageType: 'one-to-one',
             });
         },
-        [sendMessage, options],
+        [sendMessage, role, options],
     );
 
     /**
@@ -209,14 +219,18 @@ export const useComposeMessage = (role: 'lecturer' | 'student', options?: Compos
                 return Promise.resolve(false);
             }
 
+            // Đối với lecturer gửi tin nhắn nhóm, assignmentId chính là courseId.
+            const courseId = role === 'lecturer' ? numAssignmentId : undefined;
+
             return sendMessage({
+                courseId,
                 assignmentId: numAssignmentId,
                 recipientIds: numRecipientIds,
                 message,
                 messageType: 'group',
             });
         },
-        [sendMessage, options],
+        [sendMessage, role, options],
     );
 
     /**

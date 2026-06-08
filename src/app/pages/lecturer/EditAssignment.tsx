@@ -1,19 +1,31 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import { Label } from '../../components/ui/label';
-import { Textarea } from '../../components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { ArrowLeft, Download, FileText, Loader2, Save, Upload, X, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
-import { Course } from '../../../model';
-import { Assignment } from '../../../model/assignment';
-import { CriteriaPayload, RubricPayload } from '../../../model/rubric';
-import { getAssignmentDetails, updateAssignment } from '../../services/lecturer/assignmentService';
-import { getAllCourses } from '../../services/lecturer/courseService';
-import { toast } from 'react-toastify';
-import { ScoringLevel, ScoringLevelsEditor, createDefaultScoringLevels } from '../../components/ScoringLevelsEditor';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card'
+import { Button } from '../../components/ui/button'
+import { Input } from '../../components/ui/input'
+import { Label } from '../../components/ui/label'
+import { Textarea } from '../../components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select'
+import {
+  ArrowLeft,
+  Download,
+  FileText,
+  Loader2,
+  Save,
+  Upload,
+  X,
+  Plus,
+  Trash2,
+  ChevronDown,
+  ChevronRight
+} from 'lucide-react'
+import { Course } from '../../../model'
+import { Assignment } from '../../../model/assignment'
+import { CriteriaPayload, RubricPayload } from '../../../model/rubric'
+import { getAssignmentDetails, updateAssignment } from '../../services/lecturer/assignmentService'
+import { getAllCourses } from '../../services/lecturer/courseService'
+import { toast } from 'react-toastify'
+import { ScoringLevel, ScoringLevelsEditor, createDefaultScoringLevels } from '../../components/ScoringLevelsEditor'
 
 const FILE_TYPE_OPTIONS = ['pdf', 'docx']
 const DEADLINE_OFFSET_MINUTES = 5
@@ -21,10 +33,10 @@ const ASSIGNMENT_TYPE_OPTIONS = [
   { value: 'project', label: 'Project' },
   { value: 'long essay', label: 'Long Essay' },
   { value: 'short answer', label: 'Short Answer' },
-  { value: 'other', label: 'Other' }, 
+  { value: 'other', label: 'Other' }
 ] as const
 
-type AssignmentTypeOption = typeof ASSIGNMENT_TYPE_OPTIONS[number]['value']
+type AssignmentTypeOption = (typeof ASSIGNMENT_TYPE_OPTIONS)[number]['value']
 
 type CriteriaDraft = CriteriaPayload
 type NormalizedCriteriaDraft = CriteriaDraft & { sourceIndex: number }
@@ -33,7 +45,7 @@ const createEmptyCriteria = (): CriteriaDraft => ({
   criteria_name: '',
   description: '',
   max_score: 0,
-  weight: 0,
+  weight: 0
 })
 
 const toIsoDate = (value: string) => {
@@ -104,44 +116,40 @@ const normalizeAllowedFileTypes = (value: unknown): string[] => {
     )
   }
 
-  return [];
-};
+  return []
+}
 
 const getFileNameFromUrl = (url: string): string => {
   try {
-    const urlObj = new URL(url);
-    const pathname = urlObj.pathname;
-    return pathname.split('/').pop() || 'assignment-file';
+    const urlObj = new URL(url)
+    const pathname = urlObj.pathname
+    return pathname.split('/').pop() || 'assignment-file'
   } catch {
-    return 'assignment-file';
+    return 'assignment-file'
   }
-};
+}
 
-const normalizeAssignmentTypeSelection = (
-  value?: string,
-): { type: AssignmentTypeOption; otherValue: string } => {
+const normalizeAssignmentTypeSelection = (value?: string): { type: AssignmentTypeOption; otherValue: string } => {
   const normalized = value?.trim().toLowerCase() ?? ''
-  const predefined = ASSIGNMENT_TYPE_OPTIONS
-    .filter((option) => option.value !== 'other')
-    .map((option) => option.value)
+  const predefined = ASSIGNMENT_TYPE_OPTIONS.filter((option) => option.value !== 'other').map((option) => option.value)
 
   if (predefined.includes(normalized as Exclude<AssignmentTypeOption, 'other'>)) {
     return {
       type: normalized as AssignmentTypeOption,
-      otherValue: '',
+      otherValue: ''
     }
   }
 
   if (!normalized) {
     return {
       type: 'project',
-      otherValue: '',
+      otherValue: ''
     }
   }
 
   return {
     type: 'other',
-    otherValue: value?.trim() ?? '',
+    otherValue: value?.trim() ?? ''
   }
 }
 
@@ -151,47 +159,45 @@ const formatFileSizeMb = (bytes: number) => {
 }
 
 export function EditAssignment() {
-  const navigate = useNavigate();
-  const { assignment_id } = useParams();
-  const [searchParams] = useSearchParams();
-  const courseFromQuery = searchParams.get('course') ?? '';
+  const navigate = useNavigate()
+  const { assignment_id } = useParams()
+  const [searchParams] = useSearchParams()
+  const courseFromQuery = searchParams.get('course') ?? ''
 
-  const [assignment, setAssignment] = useState<Assignment | null>(null);
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [assignment, setAssignment] = useState<Assignment | null>(null)
+  const [courses, setCourses] = useState<Course[]>([])
 
-  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
-  const [isLoadingCourses, setIsLoadingCourses] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false)
+  const [isLoadingCourses, setIsLoadingCourses] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const [courseId, setCourseId] = useState(courseFromQuery);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [assignmentType, setAssignmentType] = useState<AssignmentTypeOption>('project');
-  const [assignmentTypeOther, setAssignmentTypeOther] = useState('');
-  const [questions, setQuestions] = useState('');
-  const [requirements, setRequirements] = useState('');
-  const [deadline, setDeadline] = useState('');
-  const [totalPoints, setTotalPoints] = useState('10');
-  const [maxFileSizeMb, setMaxFileSizeMb] = useState('10');
-  const [allowLateSubmissions, setAllowLateSubmissions] = useState(true);
-  const [enableAiGrading, setEnableAiGrading] = useState(true);
-  const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>(FILE_TYPE_OPTIONS);
-  const [deadlineTick, setDeadlineTick] = useState(Date.now());
-  const [questionFile, setQuestionFile] = useState<File | null>(null);
-  const [solutionFile, setSolutionFile] = useState<File | null>(null);
-  const [questionFileUrl, setQuestionFileUrl] = useState('');
-  const [solutionFileUrl, setSolutionFileUrl] = useState('');
-  const [isCurrentQuestionFileRemoved, setIsCurrentQuestionFileRemoved] = useState(false);
-  const [isCurrentSolutionFileRemoved, setIsCurrentSolutionFileRemoved] = useState(false);
-  const [isDraggingQuestionFile, setIsDraggingQuestionFile] = useState(false);
-  const [isDraggingSolutionFile, setIsDraggingSolutionFile] = useState(false);
-  const [expandedCriteria, setExpandedCriteria] = useState<number | null>(null);
-  const [scoringLevels, setScoringLevels] = useState<{ [key: number]: ScoringLevel[] }>({});
-  const [criteriaList, setCriteriaList] = useState<CriteriaDraft[]>([
-    createEmptyCriteria(),
-  ]);
-  const questionFileInputRef = useRef<HTMLInputElement | null>(null);
-  const solutionFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [courseId, setCourseId] = useState(courseFromQuery)
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [assignmentType, setAssignmentType] = useState<AssignmentTypeOption>('project')
+  const [assignmentTypeOther, setAssignmentTypeOther] = useState('')
+  const [questions, setQuestions] = useState('')
+  const [requirements, setRequirements] = useState('')
+  const [deadline, setDeadline] = useState('')
+  const [totalPoints, setTotalPoints] = useState('10')
+  const [maxFileSizeMb, setMaxFileSizeMb] = useState('10')
+  const [allowLateSubmissions, setAllowLateSubmissions] = useState(true)
+  const [enableAiGrading, setEnableAiGrading] = useState(true)
+  const [selectedFileTypes, setSelectedFileTypes] = useState<string[]>(FILE_TYPE_OPTIONS)
+  const [deadlineTick, setDeadlineTick] = useState(Date.now())
+  const [questionFile, setQuestionFile] = useState<File | null>(null)
+  const [solutionFile, setSolutionFile] = useState<File | null>(null)
+  const [questionFileUrl, setQuestionFileUrl] = useState('')
+  const [solutionFileUrl, setSolutionFileUrl] = useState('')
+  const [isCurrentQuestionFileRemoved, setIsCurrentQuestionFileRemoved] = useState(false)
+  const [isCurrentSolutionFileRemoved, setIsCurrentSolutionFileRemoved] = useState(false)
+  const [isDraggingQuestionFile, setIsDraggingQuestionFile] = useState(false)
+  const [isDraggingSolutionFile, setIsDraggingSolutionFile] = useState(false)
+  const [expandedCriteria, setExpandedCriteria] = useState<number | null>(null)
+  const [scoringLevels, setScoringLevels] = useState<{ [key: number]: ScoringLevel[] }>({})
+  const [criteriaList, setCriteriaList] = useState<CriteriaDraft[]>([createEmptyCriteria()])
+  const questionFileInputRef = useRef<HTMLInputElement | null>(null)
+  const solutionFileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     const timerId = window.setInterval(() => {
@@ -218,38 +224,39 @@ export function EditAssignment() {
           return
         }
 
-        setAssignment(parsedAssignment);
-        setCourseId(parsedAssignment.course_id || courseFromQuery);
-        setTitle(parsedAssignment.title ?? '');
-        setDescription(parsedAssignment.description ?? '');
+        setAssignment(parsedAssignment)
+        setCourseId(parsedAssignment.course_id || courseFromQuery)
+        setTitle(parsedAssignment.title ?? '')
+        setDescription(parsedAssignment.description ?? '')
         const assignmentTypeSelection = normalizeAssignmentTypeSelection(parsedAssignment.assignment_type)
         setAssignmentType(assignmentTypeSelection.type)
         setAssignmentTypeOther(assignmentTypeSelection.otherValue)
-        setQuestions(parsedAssignment.questions ?? '');
-        setRequirements(parsedAssignment.requirements ?? '');
-        setDeadline(toLocalDateTimeInput(parsedAssignment.due_date));
-        setTotalPoints(String(parsedAssignment.max_score ?? 100));
-        setMaxFileSizeMb(String(parsedAssignment.max_file_size_mb ?? 10));
-        setAllowLateSubmissions(parsedAssignment.allow_late_submissions ?? true);
-        setEnableAiGrading(parsedAssignment.enable_ai_grading ?? true);
-        setSelectedFileTypes(normalizeAllowedFileTypes((parsedAssignment as Partial<Assignment>).allowed_file_types));
-        setQuestionFileUrl(parsedAssignment.question_file_url ?? '');
-        setSolutionFileUrl(parsedAssignment.solution_file_url ?? '');
+        setQuestions(parsedAssignment.questions ?? '')
+        setRequirements(parsedAssignment.requirements ?? '')
+        setDeadline(toLocalDateTimeInput(parsedAssignment.due_date))
+        setTotalPoints(String(parsedAssignment.max_score ?? 100))
+        setMaxFileSizeMb(String(parsedAssignment.max_file_size_mb ?? 10))
+        setAllowLateSubmissions(parsedAssignment.allow_late_submissions ?? true)
+        setEnableAiGrading(parsedAssignment.enable_ai_grading ?? true)
+        setSelectedFileTypes(normalizeAllowedFileTypes((parsedAssignment as Partial<Assignment>).allowed_file_types))
+        setQuestionFileUrl(parsedAssignment.question_file_url ?? '')
+        setSolutionFileUrl(parsedAssignment.solution_file_url ?? '')
         if (parsedAssignment.rubric?.criteria?.length) {
           const nextScoringLevels: { [key: number]: ScoringLevel[] } = {}
           setCriteriaList(
             parsedAssignment.rubric.criteria.map((criteria, index) => {
               const rawWeight = Number(criteria.weight) || 0
               const percentageWeight = rawWeight <= 1 ? rawWeight * 100 : rawWeight
-              const ranges = Array.isArray(criteria.ranges) && criteria.ranges.length > 0
-                ? criteria.ranges.map((range, rangeIndex) => ({
-                  id: String(range.range_id ?? `${criteria.criteria_id ?? index}-${rangeIndex}`),
-                  level: String(range.level ?? '').trim() || `Level ${rangeIndex + 1}`,
-                  description: String(range.description ?? '').trim(),
-                  minScore: Number(range.min_score) || 0,
-                  maxScore: Number(range.max_score) || 0,
-                }))
-                : createDefaultScoringLevels()
+              const ranges =
+                Array.isArray(criteria.ranges) && criteria.ranges.length > 0
+                  ? criteria.ranges.map((range, rangeIndex) => ({
+                      id: String(range.range_id ?? `${criteria.criteria_id ?? index}-${rangeIndex}`),
+                      level: String(range.level ?? '').trim() || `Level ${rangeIndex + 1}`,
+                      description: String(range.description ?? '').trim(),
+                      minScore: Number(range.min_score) || 0,
+                      maxScore: Number(range.max_score) || 0
+                    }))
+                  : createDefaultScoringLevels()
 
               nextScoringLevels[index] = ranges
 
@@ -259,24 +266,24 @@ export function EditAssignment() {
                 criteria_name: criteria.criteria_name,
                 description: criteria.description,
                 max_score: criteria.max_score,
-                weight: Number(percentageWeight.toFixed(2)),
+                weight: Number(percentageWeight.toFixed(2))
               }
-            }),
+            })
           )
           setScoringLevels(nextScoringLevels)
         } else {
           setCriteriaList([createEmptyCriteria()])
           setScoringLevels({})
         }
-        setIsCurrentQuestionFileRemoved(false);
-        setIsCurrentSolutionFileRemoved(false);
+        setIsCurrentQuestionFileRemoved(false)
+        setIsCurrentSolutionFileRemoved(false)
       } catch (error) {
-        console.error('Error fetching assignment details for edit:', error);
-        toast.error('Failed to load assignment details.');
+        console.error('Error fetching assignment details for edit:', error)
+        toast.error('Failed to load assignment details.')
       } finally {
-        setIsLoadingDetails(false);
+        setIsLoadingDetails(false)
       }
-    };
+    }
 
     fetchAssignment()
   }, [assignment_id, courseFromQuery, navigate])
@@ -331,27 +338,25 @@ export function EditAssignment() {
           criteria_name: criteria.criteria_name.trim(),
           description: criteria.description.trim(),
           max_score: Number(criteria.max_score) || 0,
-          weight: Number(criteria.weight) || 0,
+          weight: Number(criteria.weight) || 0
         }))
         .filter((criteria) => (Number(criteria.weight) || 0) > 0),
-    [criteriaList],
+    [criteriaList]
   )
   const hasRubricInput = normalizedRubricCriteria.length > 0
-  const rubricPoints = useMemo(
-    () => {
-      const totalPts = Number(totalPoints) || 100
-      return normalizedRubricCriteria.reduce((sum, criteria) => sum + Math.round((Number(criteria.weight) / 100) * totalPts), 0)
-    },
-    [normalizedRubricCriteria, totalPoints],
-  )
+  const rubricPoints = useMemo(() => {
+    const totalPts = Number(totalPoints) || 100
+    return normalizedRubricCriteria.reduce(
+      (sum, criteria) => sum + Math.round((Number(criteria.weight) / 100) * totalPts),
+      0
+    )
+  }, [normalizedRubricCriteria, totalPoints])
 
   const toggleFileType = (fileType: string) => {
     setSelectedFileTypes((prev) =>
-      prev.includes(fileType)
-        ? prev.filter((item) => item !== fileType)
-        : [...prev, fileType]
-    );
-  };
+      prev.includes(fileType) ? prev.filter((item) => item !== fileType) : [...prev, fileType]
+    )
+  }
 
   const addCriteria = () => {
     setCriteriaList((prev) => [...prev, createEmptyCriteria()])
@@ -372,11 +377,11 @@ export function EditAssignment() {
       prev.map((criteria, currentIndex) =>
         currentIndex === index
           ? {
-            ...criteria,
-            criteria_name: value,
-          }
-          : criteria,
-      ),
+              ...criteria,
+              criteria_name: value
+            }
+          : criteria
+      )
     )
   }
 
@@ -387,11 +392,11 @@ export function EditAssignment() {
       prev.map((criteria, currentIndex) =>
         currentIndex === index
           ? {
-            ...criteria,
-            weight: Math.min(percentage, 100),
-          }
-          : criteria,
-      ),
+              ...criteria,
+              weight: Math.min(percentage, 100)
+            }
+          : criteria
+      )
     )
   }
 
@@ -404,7 +409,7 @@ export function EditAssignment() {
           level: level.level.trim(),
           min_score: Number(level.minScore) || 0,
           max_score: Number(level.maxScore) || 0,
-          description: level.description.trim(),
+          description: level.description.trim()
         }))
 
         return {
@@ -413,75 +418,75 @@ export function EditAssignment() {
           criteria_name: criteria.criteria_name.trim(),
           description: criteria.description.trim(),
           weight: percentage / 100,
-          ranges,
+          ranges
         }
-      }),
+      })
     }
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setFile: (file: File | null) => void) => {
-    const file = e.target.files?.[0];
+    const file = e.target.files?.[0]
     if (file) {
-      setFile(file);
+      setFile(file)
     }
-  };
+  }
 
   const openFilePicker = (ref: React.RefObject<HTMLInputElement | null>) => {
-    ref.current?.click();
-  };
+    ref.current?.click()
+  }
 
   const clearSelectedFile = (
     setFile: (file: File | null) => void,
     setDragging: (isDragging: boolean) => void,
-    ref: React.RefObject<HTMLInputElement | null>,
+    ref: React.RefObject<HTMLInputElement | null>
   ) => {
-    setFile(null);
-    setDragging(false);
+    setFile(null)
+    setDragging(false)
     if (ref.current) {
-      ref.current.value = '';
+      ref.current.value = ''
     }
-  };
+  }
 
   const handleDragOver = (e: React.DragEvent<HTMLElement>, setDragging: (isDragging: boolean) => void) => {
-    e.preventDefault();
-    setDragging(true);
-  };
+    e.preventDefault()
+    setDragging(true)
+  }
 
   const handleDragLeave = (e: React.DragEvent<HTMLElement>, setDragging: (isDragging: boolean) => void) => {
-    e.preventDefault();
-    setDragging(false);
-  };
+    e.preventDefault()
+    setDragging(false)
+  }
 
   const handleDrop = (
     e: React.DragEvent<HTMLElement>,
     setDragging: (isDragging: boolean) => void,
-    setFile: (file: File | null) => void,
+    setFile: (file: File | null) => void
   ) => {
-    e.preventDefault();
-    setDragging(false);
-    const file = e.dataTransfer.files?.[0];
+    e.preventDefault()
+    setDragging(false)
+    const file = e.dataTransfer.files?.[0]
     if (file) {
-      setFile(file);
+      setFile(file)
     }
-  };
+  }
 
   const handleRemoveCurrentQuestionFile = () => {
-    setQuestionFileUrl('');
-    setQuestionFile(null);
-    setIsCurrentQuestionFileRemoved(true);
-  };
+    setQuestionFileUrl('')
+    setQuestionFile(null)
+    setIsCurrentQuestionFileRemoved(true)
+  }
 
   const handleRemoveCurrentSolutionFile = () => {
-    setSolutionFileUrl('');
-    setSolutionFile(null);
-    setIsCurrentSolutionFileRemoved(true);
-  };
+    setSolutionFileUrl('')
+    setSolutionFile(null)
+    setIsCurrentSolutionFileRemoved(true)
+  }
 
   const handleDownloadFile = (url: string) => {
     if (url) {
-      window.open(url, '_blank', 'noopener,noreferrer');
+      window.open(url, '_blank', 'noopener,noreferrer')
     }
-  };
+  }
 
   const handleSave = async () => {
     if (!assignment_id) {
@@ -499,8 +504,7 @@ export function EditAssignment() {
       return
     }
 
-    const normalizedAssignmentType =
-      assignmentType === 'other' ? assignmentTypeOther.trim() : assignmentType
+    const normalizedAssignmentType = assignmentType === 'other' ? assignmentTypeOther.trim() : assignmentType
 
     if (!normalizedAssignmentType) {
       toast.error('Assignment type is required.')
@@ -562,41 +566,41 @@ export function EditAssignment() {
 
     const rubricPayload = getRubricPayload(hasRubricInput ? normalizedRubricCriteria : [])
 
-    setIsSubmitting(true);
+    setIsSubmitting(true)
     try {
-      let submitData: FormData | Record<string, unknown>;
+      let submitData: FormData | Record<string, unknown>
 
       if (questionFile || solutionFile) {
-        const formData = new FormData();
+        const formData = new FormData()
         if (questionFile) {
-          formData.append('question_file', questionFile);
+          formData.append('question_file', questionFile)
         }
         if (solutionFile) {
-          formData.append('solution_file', solutionFile);
+          formData.append('solution_file', solutionFile)
         }
-        formData.append('course_id', courseId);
-        formData.append('title', title.trim());
-        formData.append('description', description.trim());
-        formData.append('assignment_type', normalizedAssignmentType);
-        formData.append('questions', questions.trim());
-        formData.append('requirements', requirements.trim());
-        formData.append('due_date', toIsoDate(deadline));
-        formData.append('max_score', String(parsedMaxScore));
-        formData.append('allowed_file_types', JSON.stringify(selectedFileTypes));
-        formData.append('max_file_size_mb', String(parsedMaxFileSize));
-        formData.append('allow_late_submissions', String(allowLateSubmissions));
-        formData.append('enable_ai_grading', String(enableAiGrading));
-        formData.append('rubric', JSON.stringify(rubricPayload));
+        formData.append('course_id', courseId)
+        formData.append('title', title.trim())
+        formData.append('description', description.trim())
+        formData.append('assignment_type', normalizedAssignmentType)
+        formData.append('questions', questions.trim())
+        formData.append('requirements', requirements.trim())
+        formData.append('due_date', toIsoDate(deadline))
+        formData.append('max_score', String(parsedMaxScore))
+        formData.append('allowed_file_types', JSON.stringify(selectedFileTypes))
+        formData.append('max_file_size_mb', String(parsedMaxFileSize))
+        formData.append('allow_late_submissions', String(allowLateSubmissions))
+        formData.append('enable_ai_grading', String(enableAiGrading))
+        formData.append('rubric', JSON.stringify(rubricPayload))
 
         if (isCurrentQuestionFileRemoved && !questionFile) {
-          formData.append('question_file_url', '');
-          formData.append('question_file_public_id', '');
+          formData.append('question_file_url', '')
+          formData.append('question_file_public_id', '')
         }
         if (isCurrentSolutionFileRemoved && !solutionFile) {
-          formData.append('solution_file_url', '');
-          formData.append('solution_file_public_id', '');
+          formData.append('solution_file_url', '')
+          formData.append('solution_file_public_id', '')
         }
-        submitData = formData;
+        submitData = formData
       } else {
         submitData = {
           course_id: courseId,
@@ -610,27 +614,27 @@ export function EditAssignment() {
           allowed_file_types: selectedFileTypes,
           max_file_size_mb: parsedMaxFileSize,
           allow_late_submissions: allowLateSubmissions,
-          enable_ai_grading: enableAiGrading,
-        };
+          enable_ai_grading: enableAiGrading
+        }
 
-        submitData.rubric = rubricPayload;
+        submitData.rubric = rubricPayload
 
         if (isCurrentQuestionFileRemoved) {
-          submitData.question_file_url = null;
-          submitData.question_file_public_id = null;
+          submitData.question_file_url = null
+          submitData.question_file_public_id = null
         } else if (questionFileUrl) {
-          submitData.question_file_url = questionFileUrl;
+          submitData.question_file_url = questionFileUrl
         }
 
         if (isCurrentSolutionFileRemoved) {
-          submitData.solution_file_url = null;
-          submitData.solution_file_public_id = null;
+          submitData.solution_file_url = null
+          submitData.solution_file_public_id = null
         } else if (solutionFileUrl) {
-          submitData.solution_file_url = solutionFileUrl;
+          submitData.solution_file_url = solutionFileUrl
         }
       }
 
-      await updateAssignment(assignment_id, submitData);
+      await updateAssignment(assignment_id, submitData)
 
       toast.success('Assignment updated successfully!')
       navigate(`/lecturer/courses/${courseId}/assignments`)
@@ -745,9 +749,14 @@ export function EditAssignment() {
                   <Textarea id='questions' rows={4} value={questions} onChange={(e) => setQuestions(e.target.value)} />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="requirements">Requirements</Label>
-                  <Textarea id="requirements" rows={4} value={requirements} onChange={(e) => setRequirements(e.target.value)} />
+                <div className='space-y-2'>
+                  <Label htmlFor='requirements'>Requirements</Label>
+                  <Textarea
+                    id='requirements'
+                    rows={4}
+                    value={requirements}
+                    onChange={(e) => setRequirements(e.target.value)}
+                  />
                 </div>
 
                 <div className='grid grid-cols-2 gap-4'>
@@ -777,145 +786,175 @@ export function EditAssignment() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className='space-y-2'>
                   <Label>Assignment Files</Label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="rounded-xl border border-gray-200 p-4 sm:p-6 space-y-3">
-                      <p className="text-sm font-medium text-gray-800">Question File</p>
+                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                    <div className='rounded-xl border border-gray-200 p-4 sm:p-6 space-y-3'>
+                      <p className='text-sm font-medium text-gray-800'>Question File</p>
                       {questionFileUrl ? (
                         <>
-                          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 truncate">
+                          <div className='rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 truncate'>
                             Current file: {getFileNameFromUrl(questionFileUrl)}
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            <Button type="button" onClick={() => handleDownloadFile(questionFileUrl)} variant="outline" size="sm">
-                              <Download className="h-4 w-4 mr-1" />
+                          <div className='flex flex-wrap gap-2'>
+                            <Button
+                              type='button'
+                              onClick={() => handleDownloadFile(questionFileUrl)}
+                              variant='outline'
+                              size='sm'
+                            >
+                              <Download className='h-4 w-4 mr-1' />
                               Download
                             </Button>
-                            <Button type="button" onClick={handleRemoveCurrentQuestionFile} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                            <Button
+                              type='button'
+                              onClick={handleRemoveCurrentQuestionFile}
+                              variant='ghost'
+                              size='sm'
+                              className='text-red-600 hover:text-red-700'
+                            >
                               Remove Current File
                             </Button>
                           </div>
                         </>
                       ) : (
-                        <p className="text-sm text-gray-500">No current file.</p>
+                        <p className='text-sm text-gray-500'>No current file.</p>
                       )}
 
                       <input
-                        id="question-file"
+                        id='question-file'
                         ref={questionFileInputRef}
-                        type="file"
+                        type='file'
                         onChange={(e) => handleFileChange(e, setQuestionFile)}
-                        className="hidden"
+                        className='hidden'
+                        aria-label='Upload question file'
                       />
                       {questionFile ? (
-                        <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="h-12 w-12 shrink-0 rounded-xl bg-red-100 text-red-600 flex items-center justify-center">
-                              <FileText className="h-6 w-6" />
+                        <div className='rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between gap-3'>
+                          <div className='flex items-center gap-3 min-w-0'>
+                            <div className='h-12 w-12 shrink-0 rounded-xl bg-red-100 text-red-600 flex items-center justify-center'>
+                              <FileText className='h-6 w-6' />
                             </div>
-                            <div className="min-w-0">
-                              <p className="text-base font-medium text-gray-900 truncate">{questionFile.name}</p>
-                              <p className="text-sm text-gray-500">{formatFileSizeMb(questionFile.size)}</p>
+                            <div className='min-w-0'>
+                              <p className='text-base font-medium text-gray-900 truncate'>{questionFile.name}</p>
+                              <p className='text-sm text-gray-500'>{formatFileSizeMb(questionFile.size)}</p>
                             </div>
                           </div>
                           <button
-                            type="button"
-                            onClick={() => clearSelectedFile(setQuestionFile, setIsDraggingQuestionFile, questionFileInputRef)}
-                            className="h-9 w-9 rounded-md text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors flex items-center justify-center"
-                            aria-label="Remove selected question file"
+                            type='button'
+                            onClick={() =>
+                              clearSelectedFile(setQuestionFile, setIsDraggingQuestionFile, questionFileInputRef)
+                            }
+                            className='h-9 w-9 rounded-md text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors flex items-center justify-center'
+                            aria-label='Remove selected question file'
                           >
-                            <X className="h-5 w-5" />
+                            <X className='h-5 w-5' />
                           </button>
                         </div>
                       ) : (
                         <button
-                          type="button"
+                          type='button'
                           onClick={() => openFilePicker(questionFileInputRef)}
                           onDragOver={(e) => handleDragOver(e, setIsDraggingQuestionFile)}
                           onDragLeave={(e) => handleDragLeave(e, setIsDraggingQuestionFile)}
                           onDrop={(e) => handleDrop(e, setIsDraggingQuestionFile, setQuestionFile)}
                           className={`w-full rounded-xl border-2 border-dashed px-4 py-10 text-center transition-colors ${isDraggingQuestionFile ? 'border-blue-400 bg-blue-50' : 'border-gray-300 bg-white hover:primary/5 hover:border-primary'}`}
                         >
-                          <div className="cursor-pointer">
-                            <Upload className="h-10 w-10 mx-auto text-gray-400 mb-3" />
-                            <p className="text-sm text-gray-600 mb-1">Click to upload or drag and drop</p>
-                            <p className="text-xs text-gray-400">PDF, Word, Text, or Excel (Max {maxFileSizeMb || '10'}MB)</p>
+                          <div className='cursor-pointer'>
+                            <Upload className='h-10 w-10 mx-auto text-gray-400 mb-3' />
+                            <p className='text-sm text-gray-600 mb-1'>Click to upload or drag and drop</p>
+                            <p className='text-xs text-gray-400'>
+                              PDF, Word, Text, or Excel (Max {maxFileSizeMb || '10'}MB)
+                            </p>
                           </div>
                         </button>
                       )}
                     </div>
 
-                    <div className="rounded-xl border border-gray-200 p-4 sm:p-6 space-y-3">
-                      <p className="text-sm font-medium text-gray-800">Solution File</p>
+                    <div className='rounded-xl border border-gray-200 p-4 sm:p-6 space-y-3'>
+                      <p className='text-sm font-medium text-gray-800'>Solution File</p>
                       {solutionFileUrl ? (
                         <>
-                          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 truncate">
+                          <div className='rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-900 truncate'>
                             Current file: {getFileNameFromUrl(solutionFileUrl)}
                           </div>
-                          <div className="flex flex-wrap gap-2">
-                            <Button type="button" onClick={() => handleDownloadFile(solutionFileUrl)} variant="outline" size="sm">
-                              <Download className="h-4 w-4 mr-1" />
+                          <div className='flex flex-wrap gap-2'>
+                            <Button
+                              type='button'
+                              onClick={() => handleDownloadFile(solutionFileUrl)}
+                              variant='outline'
+                              size='sm'
+                            >
+                              <Download className='h-4 w-4 mr-1' />
                               Download
                             </Button>
-                            <Button type="button" onClick={handleRemoveCurrentSolutionFile} variant="ghost" size="sm" className="text-red-600 hover:text-red-700">
+                            <Button
+                              type='button'
+                              onClick={handleRemoveCurrentSolutionFile}
+                              variant='ghost'
+                              size='sm'
+                              className='text-red-600 hover:text-red-700'
+                            >
                               Remove Current File
                             </Button>
                           </div>
                         </>
                       ) : (
-                        <p className="text-sm text-gray-500">No current file.</p>
+                        <p className='text-sm text-gray-500'>No current file.</p>
                       )}
 
                       <input
-                        id="solution-file"
+                        id='solution-file'
                         ref={solutionFileInputRef}
-                        type="file"
+                        type='file'
                         onChange={(e) => handleFileChange(e, setSolutionFile)}
-                        className="hidden"
+                        className='hidden'
+                        aria-label='Upload solution file'
                       />
                       {solutionFile ? (
-                        <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="h-12 w-12 shrink-0 rounded-xl bg-red-100 text-red-600 flex items-center justify-center">
-                              <FileText className="h-6 w-6" />
+                        <div className='rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between gap-3'>
+                          <div className='flex items-center gap-3 min-w-0'>
+                            <div className='h-12 w-12 shrink-0 rounded-xl bg-red-100 text-red-600 flex items-center justify-center'>
+                              <FileText className='h-6 w-6' />
                             </div>
-                            <div className="min-w-0">
-                              <p className="text-base font-medium text-gray-900 truncate">{solutionFile.name}</p>
-                              <p className="text-sm text-gray-500">{formatFileSizeMb(solutionFile.size)}</p>
+                            <div className='min-w-0'>
+                              <p className='text-base font-medium text-gray-900 truncate'>{solutionFile.name}</p>
+                              <p className='text-sm text-gray-500'>{formatFileSizeMb(solutionFile.size)}</p>
                             </div>
                           </div>
                           <button
-                            type="button"
-                            onClick={() => clearSelectedFile(setSolutionFile, setIsDraggingSolutionFile, solutionFileInputRef)}
-                            className="h-9 w-9 rounded-md text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors flex items-center justify-center"
-                            aria-label="Remove selected solution file"
+                            type='button'
+                            onClick={() =>
+                              clearSelectedFile(setSolutionFile, setIsDraggingSolutionFile, solutionFileInputRef)
+                            }
+                            className='h-9 w-9 rounded-md text-gray-500 hover:bg-gray-200 hover:text-gray-800 transition-colors flex items-center justify-center'
+                            aria-label='Remove selected solution file'
                           >
-                            <X className="h-5 w-5" />
+                            <X className='h-5 w-5' />
                           </button>
                         </div>
                       ) : (
                         <button
-                          type="button"
+                          type='button'
                           onClick={() => openFilePicker(solutionFileInputRef)}
                           onDragOver={(e) => handleDragOver(e, setIsDraggingSolutionFile)}
                           onDragLeave={(e) => handleDragLeave(e, setIsDraggingSolutionFile)}
                           onDrop={(e) => handleDrop(e, setIsDraggingSolutionFile, setSolutionFile)}
                           className={`w-full rounded-xl border-2 border-dashed px-4 py-10 text-center transition-colors ${isDraggingSolutionFile ? 'border-blue-400 bg-blue-50' : 'border-gray-300 bg-white hover:primary/5 hover:border-primary'}`}
                         >
-                          <div className="cursor-pointer">
-                            <Upload className="h-10 w-10 mx-auto text-gray-400 mb-3" />
-                            <p className="text-sm text-gray-600 mb-1">Click to upload or drag and drop</p>
-                            <p className="text-xs text-gray-400">PDF, Word, Text, or Excel (Max {maxFileSizeMb || '10'}MB)</p>
+                          <div className='cursor-pointer'>
+                            <Upload className='h-10 w-10 mx-auto text-gray-400 mb-3' />
+                            <p className='text-sm text-gray-600 mb-1'>Click to upload or drag and drop</p>
+                            <p className='text-xs text-gray-400'>
+                              PDF, Word, Text, or Excel (Max {maxFileSizeMb || '10'}MB)
+                            </p>
                           </div>
                         </button>
                       )}
                     </div>
                   </div>
-                  <p className="text-xs text-gray-500">Files will be uploaded when you save the assignment.</p>
+                  <p className='text-xs text-gray-500'>Files will be uploaded when you save the assignment.</p>
                 </div>
-
-
               </CardContent>
             </Card>
 
@@ -957,7 +996,7 @@ export function EditAssignment() {
                                   onClick={() => {
                                     setExpandedCriteria(isExpanded ? null : index)
                                     if (!isExpanded && !scoringLevels[index]) {
-                                      setScoringLevels(prev => ({
+                                      setScoringLevels((prev) => ({
                                         ...prev,
                                         [index]: createDefaultScoringLevels()
                                       }))
@@ -1012,7 +1051,7 @@ export function EditAssignment() {
                                   <ScoringLevelsEditor
                                     levels={levels}
                                     onUpdate={(updatedLevels) => {
-                                      setScoringLevels(prev => ({ ...prev, [index]: updatedLevels }))
+                                      setScoringLevels((prev) => ({ ...prev, [index]: updatedLevels }))
                                     }}
                                   />
                                 </td>
@@ -1030,7 +1069,9 @@ export function EditAssignment() {
                     <p className='text-sm font-medium text-gray-700'>Total Points</p>
                     <p className='text-xs text-gray-500 mt-1'>Sum of all criteria points</p>
                   </div>
-                  <span className={`text-2xl font-bold ${rubricPoints !== parseInt(totalPoints || '0') ? 'text-red-600' : 'text-green-600'}`}>
+                  <span
+                    className={`text-2xl font-bold ${rubricPoints !== parseInt(totalPoints || '0') ? 'text-red-600' : 'text-green-600'}`}
+                  >
                     {rubricPoints} / {totalPoints || '0'}
                   </span>
                 </div>
@@ -1055,6 +1096,7 @@ export function EditAssignment() {
                           checked={selectedFileTypes.includes(type)}
                           onChange={() => toggleFileType(type)}
                           className='rounded'
+                          aria-label={`Allow ${type} file type`}
                         />
                         <span className='text-sm'>.{type}</span>
                       </label>
